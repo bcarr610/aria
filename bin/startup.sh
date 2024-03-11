@@ -1,1 +1,3 @@
-echo "Starting ARIA Thermostat"
+echo "Starting ARIA Thermostat..."
+sleep 5
+echo
