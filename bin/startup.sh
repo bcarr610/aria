@@ -1,4 +1,4 @@
 echo "Starting ARIA Thermostat..."
 sleep 5
-cd "$HOME/aria/aria-thermostat"
+cd "$ARIA_THERMOSTAT_ROOT"
 npm start

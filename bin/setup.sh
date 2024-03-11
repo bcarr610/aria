@@ -1,4 +1,5 @@
 #!/bin/bash
+vars_path="/etc/profile.d/a_vars.sh"
 repo_owner="bcarr610"
 repo_name="aria-thermostat"
 service_name="aria-thermostat.service"
@@ -31,7 +32,20 @@ sudo chmod +x "$bin_path/*.sh"
 sudo chmod +x "$scripts_path/*.sh"
 
 # Setup service
-sudo bash -c "echo -e '[Unit]\nDescription=ARIA Thermostat\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/bin/bash $bin_path/startup.sh\nUser=root\nGroup=root\n\n[Install]\nWantedBy=multi-user.target' > '$service_path'"
+sudo bash -c "echo -e '[Unit]\nDescription=ARIA Thermostat\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/bin/bash \$ARIA_BIN/startup.sh\nUser=root\nGroup=root\n\n[Install]\nWantedBy=multi-user.target' > '$service_path'"
+
+# Set VARS
+sudo touch "$vars_path"
+echo "export ARIA_REPO_NAME=$repo_name" | sudo tee -a "$vars_path"
+echo "export ARIA_SERVICE_NAME=$service_name" | sudo tee -a "$vars_path"
+echo "export ARIA_SERVICE_PATH=$service_path" | sudo tee -a "$vars_path"
+echo "export ARIA_ROOT=$aria_root" | sudo tee -a "$vars_path"
+echo "export ARIA_THERMOSTAT_ROOT=$thermostat_root" | sudo tee -a "$vars_path"
+echo "export ARIA_BIN=$bin_path" | sudo tee -a "$vars_path"
+echo "export ARIA_SCRIPT=$scripts_path" | sudo tee -a "$vars_path"
+sudo chmod +x "$vars_path"
+
+# Initialize Service
 sudo systemctl daemon-reload
 sudo systemctl enable "$service_name"
 
