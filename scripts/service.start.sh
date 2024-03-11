@@ -1,0 +1,1 @@
+sudo systemctl start "$ARIA_SERVICE_NAME"

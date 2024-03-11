@@ -34,7 +34,7 @@ sudo chmod +x "$scripts_path/*.sh"
 # Setup service
 sudo bash -c "echo -e '[Unit]\nDescription=ARIA Thermostat\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/bin/bash \$ARIA_BIN/startup.sh\nUser=root\nGroup=root\n\n[Install]\nWantedBy=multi-user.target' > '$service_path'"
 
-# Set VARS
+# Set VARS and aliases
 sudo touch "$vars_path"
 echo "export ARIA_REPO_NAME=$repo_name" | sudo tee -a "$vars_path"
 echo "export ARIA_SERVICE_NAME=$service_name" | sudo tee -a "$vars_path"
@@ -42,7 +42,12 @@ echo "export ARIA_SERVICE_PATH=$service_path" | sudo tee -a "$vars_path"
 echo "export ARIA_ROOT=$aria_root" | sudo tee -a "$vars_path"
 echo "export ARIA_THERMOSTAT_ROOT=$thermostat_root" | sudo tee -a "$vars_path"
 echo "export ARIA_BIN=$bin_path" | sudo tee -a "$vars_path"
-echo "export ARIA_SCRIPT=$scripts_path" | sudo tee -a "$vars_path"
+echo "export ARIA_SCRIPTS=$scripts_path" | sudo tee -a "$vars_path"
+echo "alias aria:start=\"\$ARIA_SCRIPTS/service.start.sh\"" | sudo tee -a "$vars_path"
+echo "alias aria:stop=\"\$ARIA_SCRIPTS/service.stop.sh\"" | sudo tee -a "$vars_path"
+echo "alias aria:restart=\"\$ARIA_SCRIPTS/service.restart.sh\"" | sudo tee -a "$vars_path"
+echo "alias aria:monitor=\"\$ARIA_SCRIPTS/service.monitor.sh\"" | sudo tee -a "$vars_path"
+echo "alias aria:status=\"\$ARIA_SCRIPTS/service.status.sh\"" | sudo tee -a "$vars_path"
 sudo chmod +x "$vars_path"
 
 # Initialize Service

@@ -6,9 +6,7 @@
   "scripts": {
     "start": "nodemon -q --config ./nodemon/nodemon.config.prod.json ./build/index.js",
     "dev": "nodemon -q --config ./nodemon/nodemon.config.dev.json ./src/index.ts",
-    "build": "esbuild src/index.ts --bundle --platform=node --outfile=build/index.js",
-    "monitor": "journalctl -u aria-thermostat.service",
-    "service": "systemctl status aria-thermostat.service"
+    "build": "esbuild src/index.ts --bundle --platform=node --outfile=build/index.js"
   },
   "author": "",
   "license": "ISC",

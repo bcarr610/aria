@@ -1,0 +1,1 @@
+journalctl -u "$ARIA_SERVICE_NAME"
