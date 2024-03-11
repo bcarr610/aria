@@ -31,11 +31,9 @@ sudo chmod +x "$bin_path/*.sh"
 sudo chmod +x "$scripts_path/*.sh"
 
 # Setup service
-sudo bash -c "echo -e '[Unit]\nDescription=ARIA Thermostat\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/bin/bash\nExecStartPost=$scripts_path/monitor.sh $bin_path/startup.sh\nUser=root\nGroup=root\n\n[Install]\nWantedBy=multi-user.target' > '$service_path'"
+sudo bash -c "echo -e '[Unit]\nDescription=ARIA Thermostat\nAfter=network.target\n\n[Service]\nType=simple\nExecStart=/bin/bash $bin_path/startup.sh\nUser=root\nGroup=root\n\n[Install]\nWantedBy=multi-user.target' > '$service_path'"
 sudo systemctl daemon-reload
 sudo systemctl enable "$service_name"
-
-# Update PATH
 
 # Reboot
 sudo reboot

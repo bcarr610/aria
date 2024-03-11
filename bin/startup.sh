@@ -1,3 +1,4 @@
 echo "Starting ARIA Thermostat..."
 sleep 5
-echo
+cd "$HOME/aria/aria-thermostat"
+npm start

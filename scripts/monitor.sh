@@ -1,1 +1,0 @@
-journalctl -u aria-thermostat.service
