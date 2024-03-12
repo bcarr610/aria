@@ -1,2 +1,0 @@
-aria:stop
-aria:start

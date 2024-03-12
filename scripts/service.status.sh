@@ -1,1 +1,0 @@
-systemctl status "$ARIA_SERVICE_NAME"

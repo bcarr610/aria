@@ -1,8 +1,9 @@
 #! /bin/bash
 
-source /etc/profile.d/a_vars.sh
+sudo source /etc/profile.d/a_vars.sh
 
 echo "Starting ARIA Thermostat..."
 sleep 5
 cd "$ARIA_THERMOSTAT_ROOT"
-npm start
+epoch=$(date +%s)
+npm start >> "$ARIA_LOGS/$epoch.log" 2>&1
