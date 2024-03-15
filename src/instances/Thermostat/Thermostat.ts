@@ -3,7 +3,6 @@ import TemperatureSensor from "../DHTSensor/DHTSensor";
 import { E_HVACTrigger, E_ThermostatMode } from "../../enums";
 import {
   calculateTemperatureChangeSpeedPerHour,
-  dateFromNow,
   getTriggerFromMode,
 } from "../../utils/utils";
 
@@ -145,10 +144,10 @@ class Thermostat {
     // Trigger action if in auto
     if (this.mode !== E_ThermostatMode.auto) {
       if (this.shouldTriggerIdle) {
-        this.hvac.queue(
-          E_HVACTrigger.idle,
-          dateFromNow(this.config.hvac.idleDelaySec * 1000)
-        );
+        const idleAt = new Date();
+        idleAt.setTime(idleAt.getTime() + this.config.hvac.idleDelaySec * 1000);
+
+        this.hvac.queue(E_HVACTrigger.idle, idleAt);
       } else if (this.shouldCirculate) {
         this.hvac.queue(E_HVACTrigger.fan);
       } else if (this.shouldTriggerCool) {

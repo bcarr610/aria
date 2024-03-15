@@ -15,14 +15,6 @@ export const getHost = (): string => {
   return host;
 };
 
-export const dateFromNow = (...addMS: number[]): Date => {
-  const date = new Date();
-  addMS.forEach((ms) => {
-    date.setTime(date.getTime() + ms);
-  });
-  return date;
-};
-
 export const getTriggerFromMode = (mode: E_ThermostatMode): E_HVACTrigger => {
   switch (mode) {
     case E_ThermostatMode.cool:

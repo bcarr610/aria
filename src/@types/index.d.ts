@@ -48,10 +48,12 @@ interface SocketData {
 }
 
 interface I_GPIO {
-  name: string;
+  emulate: boolean;
+  gpio: import("onoff").Gpio | null;
   pin: number;
-  state: 1 | 0;
-
+  value: 1 | 0;
+  readSync(): void;
+  writeSync(value: 1 | 0): void;
   on(): void;
   off(): void;
   get isOn(): boolean;

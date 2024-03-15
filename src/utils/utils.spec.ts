@@ -8,15 +8,6 @@ describe("utils", () => {
     expect(typeof test).toBe("string");
   });
 
-  describe("dateFromNow", () => {
-    it("Should return correct date", () => {
-      const test = utils.dateFromNow(1000, 1000);
-      const d = new Date();
-      d.setTime(d.getTime() + 2000);
-      expect(test.getTime()).toBe(d.getTime());
-    });
-  });
-
   describe("getTriggerFromMode", () => {
     it("Should return cool", () => {
       const mode = E_ThermostatMode.cool;

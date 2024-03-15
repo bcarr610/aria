@@ -1,43 +1,54 @@
-import sensor from "node-dht-sensor";
-import Interval from "../Interval";
+import sensor, { SensorData, SensorType } from "node-dht-sensor";
 
 class DHTSensor {
-  private dht: 11 | 22;
-  private readSpeedMS: number;
-  private thSensorReadLength: number;
-  private readInterval: Interval;
-  private gpio: I_GPIO;
-  private readings: DHTSensorReading[] = [];
+  emulate: boolean;
+  sensorType: SensorType;
+  readSpeedMS: number;
+  thSensorReadLength: number;
+  interval: NodeJS.Timeout | null = null;
+  pin: number;
+  readings: DHTSensorReading[] = [];
   avgTemp: number = 72;
-  avgHumid: number = 72;
+  avgHumid: number = 0.25;
   onUpdate: (dhtSensor: DHTSensor) => void = () => {};
 
   constructor(
-    dht: 11 | 22,
-    gpio: I_GPIO,
+    sensorType: SensorType,
+    pin: number,
     readSpeedMS: number,
     thSensorReadLength: number
   ) {
-    this.dht = dht;
-    this.gpio = gpio;
+    this.emulate = process.env.EMULATE === "true";
+    this.sensorType = sensorType;
+    this.pin = pin;
     this.readSpeedMS = readSpeedMS;
     this.thSensorReadLength = thSensorReadLength;
-    this.readInterval = new Interval(this.readSpeedMS, this.tick.bind(this));
 
-    // this.sendUpdate = this.sendUpdate.bind(this);
-    // this.getSensorData = this.getSensorData.bind(this);
-    // this.tick = this.tick.bind(this);
+    sensor?.initialize(this.sensorType, this.pin);
   }
 
-  private sendUpdate() {
+  sendUpdate() {
     if (typeof this.onUpdate === "function") this.onUpdate(this);
   }
 
-  private getSensorData(): DHTSensorReading {
-    const reading = sensor.read(this.dht, this.gpio.pin);
+  getSensorData(mockData?: SensorData): DHTSensorReading {
+    const readSensor = () => {
+      try {
+        return sensor?.read(this.sensorType, this.pin);
+      } catch (err) {
+        if (!this.emulate) console.error(err);
+        return {
+          temperature: this.avgTemp,
+          humidity: this.avgHumid,
+        };
+      }
+    };
+
+    const { temperature, humidity } = mockData || readSensor();
+
     return {
-      temperature: reading.temperature,
-      humidity: reading.humidity,
+      temperature,
+      humidity,
       at: new Date(),
     };
   }
@@ -46,7 +57,7 @@ class DHTSensor {
     return this.readings.slice(-1)[0];
   }
 
-  private avgReading(readings: DHTSensorReading[]) {
+  avgReading(readings: DHTSensorReading[]) {
     const tmpAdd: number = readings
       .map((v) => v.temperature)
       .reduce((p, c) => {
@@ -60,14 +71,20 @@ class DHTSensor {
         return p;
       }, 0);
     return {
-      temperature: tmpAdd / readings.length,
-      humidity: humidAdd / readings.length,
+      temperature:
+        readings.length > 0
+          ? Number((tmpAdd / readings.length).toFixed(2))
+          : this.avgTemp,
+      humidity:
+        readings.length > 0
+          ? Number((humidAdd / readings.length).toFixed(2))
+          : this.avgHumid,
     };
   }
 
-  private tick() {
+  tick(mockData?: SensorData) {
     let shouldSendUpdate = false;
-    const reading = this.getSensorData();
+    const reading = this.getSensorData(mockData);
     const currentAvg = this.avgReading(this.readings);
 
     if (this.readings.length < this.thSensorReadLength) {
@@ -90,12 +107,20 @@ class DHTSensor {
     if (shouldSendUpdate) this.sendUpdate();
   }
 
-  start() {
-    this.readInterval.start();
+  start(mockData?: SensorData) {
+    if (this.interval !== null) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+    this.tick(mockData);
+    this.interval = setInterval(this.tick.bind(this), this.readSpeedMS);
   }
 
   stop() {
-    this.readInterval.stop();
+    if (this.interval !== null) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
   }
 }
 
