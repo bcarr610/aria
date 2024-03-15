@@ -1,0 +1,39 @@
+{
+  "targetOffset": 1,
+  "tempRangeSpeedOffset": 0.05,
+  "sensors": {
+    "thSensorReadIntervalSec": 5,
+    "thSensorReadLength": 10
+  },
+  "hvac": {
+    "idleDelaySec": 120,
+    "circulateAirEveryMin": 10,
+    "circulateForMin": 5,
+    "stageSettings": {
+      "heat": {
+        "stage2": {
+          "nonIdleSpeedTrigger": 0.01,
+          "targetOffsetTrigger": -10,
+          "waitTimeMin": 3
+        },
+        "emergency": {
+          "nonIdleSpeedTrigger": 0.01,
+          "targetOffsetTrigger": -20,
+          "waitTimeMin": 3
+        }
+      }
+    }
+  },
+  "gpio": {
+    "thSensor": {
+      "dataPin": 5
+    },
+    "hvacWire": {
+      "Y1": 0,
+      "G": 1,
+      "OB": 2,
+      "W1": 3,
+      "W2": 4
+    }
+  }
+}
