@@ -12,6 +12,12 @@ class Thermostat {
   humidity: number = 0.25;
   idleSpeedPerHour: number = 0;
   tempSpeedPerHour: number = 0;
+  // TODO use these to implement cool by / heat by logic
+  coolSpeedPerHour: number = 0;
+  heatSpeedPerHour: number = 0;
+  heat2PerHour: number = 0;
+  heatEPerHour: number = 0;
+  // END TODO
   config: ThermostatConfig;
   hvac: HVAC;
   mode: E_ThermostatMode = E_ThermostatMode.auto;

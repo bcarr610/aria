@@ -19,6 +19,7 @@ class HVAC {
   state: E_HVACState = E_HVACState.idle;
   nextTrigger: HVACQueueItem | null = null;
   lastRelayKill: Date = new Date();
+  interval: NodeJS.Timeout | null = null;
   lastTriggers: TriggerTimes = {
     [E_HVACTrigger.idle]: new Date(),
     [E_HVACTrigger.fan]: new Date(),
@@ -33,13 +34,47 @@ class HVAC {
     this.config = config;
   }
 
-  private sendUpdate() {
+  start() {
+    this.setPinsLow();
+    this.state = E_HVACState.idle;
+    this.lastTriggers[E_HVACState.idle] = new Date();
+    this.sendUpdate();
+    if (this.interval !== null) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+
+    this.tick();
+    this.interval = setInterval(this.tick.bind(this), this.config.clockSpeed);
+  }
+
+  stop() {
+    this.setPinsLow();
+    this.state = E_HVACState.idle;
+    this.lastTriggers[E_HVACState.idle] = new Date();
+    this.sendUpdate();
+    if (this.interval !== null) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+  }
+
+  tick() {
+    if (this.nextTrigger) {
+      const now = new Date();
+      if (now.getTime() > this.nextTrigger.at.getTime()) {
+        this.executeNextTrigger();
+      }
+    }
+  }
+
+  sendUpdate() {
     if (typeof this.onUpdate === "function") {
       this.onUpdate(this);
     }
   }
 
-  private setPinsLow() {
+  setPinsLow() {
     let turnedSomethingOff: boolean = false;
 
     this.config.controls.forEach(({ gpio }) => {
@@ -52,7 +87,7 @@ class HVAC {
     if (turnedSomethingOff) this.lastRelayKill = new Date();
   }
 
-  private getControl(trigger: E_HVACTrigger): HVACControl | null {
+  getControl(trigger: E_HVACTrigger): HVACControl | undefined {
     return this.config.controls.find((f) => f.trigger === trigger);
   }
 
@@ -66,7 +101,7 @@ class HVAC {
     };
   }
 
-  private getActiveState(trigger: E_HVACTrigger): E_HVACState {
+  getActiveState(trigger: E_HVACTrigger): E_HVACState {
     switch (trigger) {
       case E_HVACTrigger.cool:
         return E_HVACState.cooling;
@@ -84,7 +119,7 @@ class HVAC {
     }
   }
 
-  private getQueueState(trigger: E_HVACTrigger): E_HVACState {
+  getQueueState(trigger: E_HVACTrigger): E_HVACState {
     switch (trigger) {
       case E_HVACTrigger.cool:
         return E_HVACState.startingToCool;
@@ -102,7 +137,7 @@ class HVAC {
     }
   }
 
-  private getNewQueueTriggerTime(trigger: E_HVACTrigger, at: Date): Date {
+  getNewQueueTriggerTime(trigger: E_HVACTrigger, at: Date): Date {
     const d = new Date(at);
     const nextAvailableNonIdleTime =
       this.lastRelayKill.getTime() +
@@ -148,11 +183,16 @@ class HVAC {
   }
 
   queue(trigger: E_HVACTrigger, at: Date = new Date()) {
+    if (this.nextTrigger !== null) {
+      this.nextTrigger = null;
+      this.state = E_HVACState.idle;
+    }
+
     if (this.canQueue(trigger)) {
-      // If not idle and trying to trigger non-idle state, kill relays before queue
-      if (this.state !== E_HVACState.idle && trigger !== E_HVACTrigger.idle) {
-        this.setPinsLow();
-      }
+      // // If not idle and trying to trigger non-idle state, kill relays before queue
+      // if (this.state !== E_HVACState.idle && trigger !== E_HVACTrigger.idle) {
+      //   this.setPinsLow();
+      // }
 
       // Calculate the execution time based on config and last relay off state
       let triggerAt: Date = this.getNewQueueTriggerTime(trigger, at);
@@ -191,18 +231,12 @@ class HVAC {
       case E_HVACTrigger.heat:
         return (
           this.state !== E_HVACState.heating &&
-          this.state !== E_HVACState.startingHeat &&
-          this.state !== E_HVACState.startingHeatStage2 &&
-          this.state !== E_HVACState.heatingStage2 &&
-          this.state !== E_HVACState.startingEmergencyHeat &&
-          this.state !== E_HVACState.heatingEmergency
+          this.state !== E_HVACState.startingHeat
         );
       case E_HVACTrigger.heatStage2:
         return (
           this.state !== E_HVACState.startingHeatStage2 &&
-          this.state !== E_HVACState.heatingStage2 &&
-          this.state !== E_HVACState.startingEmergencyHeat &&
-          this.state !== E_HVACState.heatingEmergency
+          this.state !== E_HVACState.heatingStage2
         );
       case E_HVACTrigger.heatEmergency:
         return (

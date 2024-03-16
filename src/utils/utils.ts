@@ -44,3 +44,11 @@ export const wait = async (ms: number) =>
   new Promise((resolve, reject) => {
     setTimeout(resolve, ms);
   });
+
+export const iterableEnum = (enumSet: any): number[] => {
+  const enums = Object.keys(enumSet as unknown as Object);
+  const out: number[] = enums
+    .slice(0, enums.length / 2)
+    .map((v) => Number(v)) as number[];
+  return out;
+};

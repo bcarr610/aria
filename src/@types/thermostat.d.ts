@@ -72,12 +72,6 @@ type HVACConfigJson = {
 };
 
 type HVACConfig = HVACConfigJson & {
+  clockSpeed: number;
   controls: HVACControl[];
-};
-
-type Params = {
-  heating: {
-    waitForStage2Sec: number;
-    waitForEmergencySec: number;
-  };
 };

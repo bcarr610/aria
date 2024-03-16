@@ -52,7 +52,7 @@ interface I_GPIO {
   gpio: import("onoff").Gpio | null;
   pin: number;
   value: 1 | 0;
-  readSync(): void;
+  readSync(): 1 | 0;
   writeSync(value: 1 | 0): void;
   on(): void;
   off(): void;

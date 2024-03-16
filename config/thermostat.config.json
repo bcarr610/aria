@@ -6,6 +6,7 @@
     "thSensorReadLength": 10
   },
   "hvac": {
+    "clockSpeed": 1000,
     "idleDelaySec": 120,
     "circulateAirEveryMin": 10,
     "circulateForMin": 5,

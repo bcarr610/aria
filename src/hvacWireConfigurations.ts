@@ -1,5 +1,6 @@
 import { E_HVACComponent, E_HVACTrigger, E_HVACWire } from "./enums";
 import thermostatConfig from "../config/thermostat.config.json";
+import GPIO from "./instances/GPIO";
 
 const tconfig: ThermostatConfig = thermostatConfig;
 const {
@@ -9,31 +10,31 @@ const {
 const c_5wireStandard = (thermostatConfig: ThermostatConfig): HVACControl[] => [
   {
     wire: E_HVACWire.Y1,
-    gpio: new GPIO("Cooling Wire", thermostatConfig.gpio.hvacWire.Y1),
+    gpio: new GPIO(thermostatConfig.gpio.hvacWire.Y1, "out"),
     component: E_HVACComponent.COOLING,
     trigger: E_HVACTrigger.cool,
   },
   {
     wire: E_HVACWire.G,
-    gpio: new GPIO("Fan Wire", thermostatConfig.gpio.hvacWire.G),
+    gpio: new GPIO(thermostatConfig.gpio.hvacWire.G, "out"),
     component: E_HVACComponent.FAN,
     trigger: E_HVACTrigger.fan,
   },
   {
     wire: E_HVACWire.OB,
-    gpio: new GPIO("Heat Pump Wire", thermostatConfig.gpio.hvacWire.OB),
+    gpio: new GPIO(thermostatConfig.gpio.hvacWire.OB, "out"),
     component: E_HVACComponent.HEAT_PUMP,
     trigger: E_HVACTrigger.heat,
   },
   {
     wire: E_HVACWire.W1,
-    gpio: new GPIO("Heat Stage 2 Wire", thermostatConfig.gpio.hvacWire.W1),
+    gpio: new GPIO(thermostatConfig.gpio.hvacWire.W1, "out"),
     component: E_HVACComponent.HEAT_STAGE_2,
     trigger: E_HVACTrigger.heatStage2,
   },
   {
     wire: E_HVACWire.W2,
-    gpio: new GPIO("Emergency Heat Wire", thermostatConfig.gpio.hvacWire.W2),
+    gpio: new GPIO(thermostatConfig.gpio.hvacWire.W2, "out"),
     component: E_HVACComponent.EMERGENCY_HEAT,
     trigger: E_HVACTrigger.heatEmergency,
   },
