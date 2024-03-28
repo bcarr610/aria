@@ -5,6 +5,8 @@ interface AriaSharedEventManager {
   onSocketError(): void;
 }
 
+type Runtime = "production" | "development" | "remote";
+
 type DHTSensorReading = {
   temperature: number;
   humidity: number;
@@ -26,16 +28,21 @@ interface AriaServerConfig {
   port: number;
 }
 
+type AriaEventName = "ARIA";
+type ThermostatEventName = "THERMOSTAT";
+type ThermostatEvent =
+  | "TEMP_CHANGE"
+  | "SPEED_CHANGE"
+  | "HVAC_CHANGE"
+  | "SCHEDULE_START";
+
 interface ThermostatToHubEvents {
   "target:change": (target: number) => void;
   "temp:change": (temp: number) => void;
-  "hvac:change": (hvacState: import("../enums").E_HVACState) => void;
-  "mode:change": (mode: import("../enums").E_ThermostatMode) => void;
 }
 
 interface HubToThermostatEvents {
   "set:target": (target: number) => void;
-  "set:mode": (mode: import("../enums").E_ThermostatMode) => void;
 }
 
 interface InterThermostatEvents {
@@ -45,16 +52,4 @@ interface InterThermostatEvents {
 interface SocketData {
   name: string;
   age: number;
-}
-
-interface I_GPIO {
-  emulate: boolean;
-  gpio: import("onoff").Gpio | null;
-  pin: number;
-  value: 1 | 0;
-  readSync(): 1 | 0;
-  writeSync(value: 1 | 0): void;
-  on(): void;
-  off(): void;
-  get isOn(): boolean;
 }

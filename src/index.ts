@@ -7,32 +7,14 @@ import hvacWireConfigurations from "./hvacWireConfigurations";
 import hConfig from "../config/hvac.config.json";
 import tConfig from "../config/thermostat.config.json";
 import TemperatureSensor from "./instances/DHTSensor/DHTSensor";
+import { EventEmitter } from "node:events";
 
-let hvacConfig: HVACConfig;
+// TODO Send telementery data
+
 const hvacConfigJson = hConfig as unknown as HVACConfigJson;
 const thermostatConfig = tConfig as unknown as ThermostatConfig;
 
-if (!hvacWireConfigurations[hvacConfigJson?.wireConfiguration]) {
-  console.error(
-    `Invalid HVAC_CONFIG.wireConfig value "${
-      hvacConfigJson?.wireConfiguration
-    }", acceptable values are ${Object.keys(hvacWireConfigurations)
-      .map((v) => `"${v}"`)
-      .join(", ")}`
-  );
-  process.exit(1);
-} else {
-  hvacConfig = {
-    ...hvacConfigJson,
-    controls:
-      hvacWireConfigurations[hvacConfigJson.wireConfiguration](
-        thermostatConfig
-      ),
-  };
-}
-
 const port = Number(process.env?.PORT || 4000);
-global.__ROOT__ = path.resolve(__dirname, "..");
 const server = new AriaServer({ protocol: "http", port });
 
 const hvac = new HVAC(hvacConfig);

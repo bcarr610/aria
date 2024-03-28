@@ -1,250 +1,199 @@
-import { E_HVACState, E_HVACTrigger } from "../../enums";
-
-type TriggerTimes = {
-  [E_HVACTrigger.idle]: Date;
-  [E_HVACTrigger.fan]: Date;
-  [E_HVACTrigger.cool]: Date;
-  [E_HVACTrigger.heat]: Date;
-  [E_HVACTrigger.heatStage2]: Date;
-  [E_HVACTrigger.heatEmergency]: Date;
-};
-
-type LastTrigger = {
-  type: E_HVACTrigger;
-  at: Date;
-};
+import { clamp } from "../../utils";
+import GPIO from "../GPIO";
 
 class HVAC {
-  config: HVACConfig;
-  state: E_HVACState = E_HVACState.idle;
-  nextTrigger: HVACQueueItem | null = null;
-  lastRelayKill: Date = new Date();
-  interval: NodeJS.Timeout | null = null;
-  lastTriggers: TriggerTimes = {
-    [E_HVACTrigger.idle]: new Date(),
-    [E_HVACTrigger.fan]: new Date(),
-    [E_HVACTrigger.cool]: new Date(),
-    [E_HVACTrigger.heat]: new Date(),
-    [E_HVACTrigger.heatStage2]: new Date(),
-    [E_HVACTrigger.heatEmergency]: new Date(),
-  };
-  onUpdate: (hvac: HVAC) => void = () => {};
+  state: HVACState;
+  nextAction: NextHVACAction | null = null;
+  times: HVACStateTimes;
+  private transitionTime: number;
+  private minCycleTime: number;
+  private components: HVACComponents;
+  private _onUpdate: (data: HVACUpdateData) => void = () => {};
 
-  constructor(config: HVACConfig) {
-    this.config = config;
-  }
-
-  start() {
-    this.setPinsLow();
-    this.state = E_HVACState.idle;
-    this.lastTriggers[E_HVACState.idle] = new Date();
-    this.sendUpdate();
-    if (this.interval !== null) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-
-    this.tick();
-    this.interval = setInterval(this.tick.bind(this), this.config.clockSpeed);
-  }
-
-  stop() {
-    this.setPinsLow();
-    this.state = E_HVACState.idle;
-    this.lastTriggers[E_HVACState.idle] = new Date();
-    this.sendUpdate();
-    if (this.interval !== null) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-  }
-
-  tick() {
-    if (this.nextTrigger) {
-      const now = new Date();
-      if (now.getTime() > this.nextTrigger.at.getTime()) {
-        this.executeNextTrigger();
-      }
-    }
-  }
-
-  sendUpdate() {
-    if (typeof this.onUpdate === "function") {
-      this.onUpdate(this);
-    }
-  }
-
-  setPinsLow() {
-    let turnedSomethingOff: boolean = false;
-
-    this.config.controls.forEach(({ gpio }) => {
-      if (gpio.isOn) {
-        if (!turnedSomethingOff) turnedSomethingOff = true;
-        gpio.off();
-      }
-    });
-
-    if (turnedSomethingOff) this.lastRelayKill = new Date();
-  }
-
-  getControl(trigger: E_HVACTrigger): HVACControl | undefined {
-    return this.config.controls.find((f) => f.trigger === trigger);
-  }
-
-  get lastTrigger(): LastTrigger {
-    const [key, value] = Object.entries(this.lastTriggers).sort((a, b) =>
-      a > b ? 1 : -1
-    )[0];
-    return {
-      type: key as unknown as E_HVACTrigger,
-      at: value,
+  constructor(
+    transitionTime: number,
+    minCycleTime: number,
+    compressor: GPIO,
+    heatPump: GPIO,
+    auxHeat: GPIO,
+    fan: GPIO
+  ) {
+    this.state = "IDLE";
+    this.transitionTime = transitionTime;
+    this.minCycleTime = minCycleTime;
+    this.components = {
+      compressor,
+      heatPump,
+      auxHeat,
+      fan,
     };
+    this.times = {
+      IDLE: { lastActive: new Date(), lastInactive: new Date() },
+      CIRCULATE: { lastActive: new Date(), lastInactive: new Date() },
+      COOL: { lastActive: new Date(), lastInactive: new Date() },
+      HEAT: { lastActive: new Date(), lastInactive: new Date() },
+      HEAT_AUX: { lastActive: new Date(), lastInactive: new Date() },
+    };
+    this.idle();
   }
 
-  getActiveState(trigger: E_HVACTrigger): E_HVACState {
-    switch (trigger) {
-      case E_HVACTrigger.cool:
-        return E_HVACState.cooling;
-      case E_HVACTrigger.fan:
-        return E_HVACState.blowing;
-      case E_HVACTrigger.heat:
-        return E_HVACState.heating;
-      case E_HVACTrigger.heatStage2:
-        return E_HVACState.heatingStage2;
-      case E_HVACTrigger.heatEmergency:
-        return E_HVACState.heatingEmergency;
-      case E_HVACTrigger.idle:
-      default:
-        return E_HVACState.idle;
+  set onUpdate(fn: (data: HVACUpdateData) => void) {
+    this._onUpdate = fn;
+  }
+
+  private sendUpdate() {
+    if (typeof this._onUpdate === "function") {
+      this._onUpdate({
+        state: this.state,
+        nextAction: this.nextAction,
+        times: this.times,
+        components: {
+          compressor: {
+            lastActiveTime: this.components.compressor.lastHighTime,
+            lastInactiveTime: this.components.compressor.lastLowTime,
+            isActive: this.components.compressor.value === 1,
+          },
+          heatPump: {
+            lastActiveTime: this.components.heatPump.lastHighTime,
+            lastInactiveTime: this.components.heatPump.lastLowTime,
+            isActive: this.components.heatPump.value === 1,
+          },
+          auxHeat: {
+            lastActiveTime: this.components.auxHeat.lastHighTime,
+            lastInactiveTime: this.components.auxHeat.lastLowTime,
+            isActive: this.components.auxHeat.value === 1,
+          },
+          fan: {
+            lastActiveTime: this.components.fan.lastHighTime,
+            lastInactiveTime: this.components.fan.lastLowTime,
+            isActive: this.components.fan.value === 1,
+          },
+        },
+      });
     }
   }
 
-  getQueueState(trigger: E_HVACTrigger): E_HVACState {
-    switch (trigger) {
-      case E_HVACTrigger.cool:
-        return E_HVACState.startingToCool;
-      case E_HVACTrigger.fan:
-        return E_HVACState.startingFan;
-      case E_HVACTrigger.heat:
-        return E_HVACState.startingHeat;
-      case E_HVACTrigger.heatStage2:
-        return E_HVACState.startingHeatStage2;
-      case E_HVACTrigger.heatEmergency:
-        return E_HVACState.startingEmergencyHeat;
-      case E_HVACTrigger.idle:
-      default:
-        return E_HVACState.startingIdle;
-    }
+  private on(name: HVACComponentName) {
+    this.components[name].value = 1;
   }
 
-  getNewQueueTriggerTime(trigger: E_HVACTrigger, at: Date): Date {
-    const d = new Date(at);
-    const nextAvailableNonIdleTime =
-      this.lastRelayKill.getTime() +
-      this.config.triggerDelayMinutes * 60 * 1000;
-    if (trigger !== E_HVACTrigger.idle) {
-      if (d.getTime() < nextAvailableNonIdleTime) {
-        d.setTime(nextAvailableNonIdleTime);
-      }
-    }
+  private off(name: HVACComponentName) {
+    this.components[name].value = 0;
+  }
 
+  private get minWaitTimeReachedAt(): Date {
+    const now = new Date().getTime();
+    const elapsed = now - this.times[this.state].lastActive.getTime();
+    const waitTime =
+      this.state === "IDLE" ? this.transitionTime : this.minCycleTime;
+    const addTime = clamp(waitTime - elapsed, [0]);
+    const d = new Date(now);
+    d.setTime(d.getTime() + addTime);
     return d;
   }
 
-  get isIdle() {
-    return this.state === E_HVACState.idle;
-  }
-
-  get isHeatingAnyStage() {
-    return [
-      E_HVACState.heating,
-      E_HVACState.heatingStage2,
-      E_HVACState.heatingEmergency,
-    ].includes(this.state);
-  }
-
-  get isCoolingAnyStage() {
-    return [E_HVACState.cooling].includes(this.state);
-  }
-
-  get isCirculating() {
-    return this.state === E_HVACState.blowing;
-  }
-
-  executeNextTrigger() {
-    this.setPinsLow();
-    if (this.nextTrigger) {
-      this.lastTriggers[this.nextTrigger.trigger] = new Date();
-      if (this.nextTrigger.control) this.nextTrigger.control.gpio.on();
-      this.state = this.getActiveState(this.nextTrigger.trigger);
-      this.nextTrigger = null;
-    }
+  private idle() {
+    this.times.IDLE.lastActive = new Date();
+    this.times[this.state].lastInactive = new Date();
+    this.off("compressor");
+    this.off("heatPump");
+    this.off("auxHeat");
+    this.off("fan");
+    this.state = "IDLE";
     this.sendUpdate();
   }
 
-  queue(trigger: E_HVACTrigger, at: Date = new Date()) {
-    if (this.nextTrigger !== null) {
-      this.nextTrigger = null;
-      this.state = E_HVACState.idle;
-    }
+  private circulate() {
+    this.times.CIRCULATE.lastActive = new Date();
+    this.times[this.state].lastInactive = new Date();
+    this.off("compressor");
+    this.off("heatPump");
+    this.off("auxHeat");
+    this.on("fan");
+    this.state = "CIRCULATE";
+    this.sendUpdate();
+  }
 
-    if (this.canQueue(trigger)) {
-      // // If not idle and trying to trigger non-idle state, kill relays before queue
-      // if (this.state !== E_HVACState.idle && trigger !== E_HVACTrigger.idle) {
-      //   this.setPinsLow();
-      // }
+  private cool() {
+    this.times.COOL.lastActive = new Date();
+    this.times[this.state].lastInactive = new Date();
+    this.on("compressor");
+    this.off("heatPump");
+    this.off("auxHeat");
+    this.on("fan");
+    this.state = "COOL";
+    this.sendUpdate();
+  }
 
-      // Calculate the execution time based on config and last relay off state
-      let triggerAt: Date = this.getNewQueueTriggerTime(trigger, at);
+  private heat() {
+    this.times.HEAT.lastActive = new Date();
+    this.times[this.state].lastInactive = new Date();
+    this.off("compressor");
+    this.on("heatPump");
+    this.off("auxHeat");
+    this.on("fan");
+    this.state = "HEAT";
+    this.sendUpdate();
+  }
 
-      // Queue the next trigger event
-      const control = this.getControl(trigger);
-      this.nextTrigger = {
-        trigger,
-        control,
-        at: triggerAt,
+  private auxHeat() {
+    this.times.HEAT_AUX.lastActive = new Date();
+    this.times[this.state].lastInactive = new Date();
+    this.off("compressor");
+    this.on("heatPump");
+    this.on("auxHeat");
+    this.on("fan");
+    this.state = "HEAT_AUX";
+    this.sendUpdate();
+  }
+
+  queue(newState: HVACState) {
+    if (this.state !== newState) {
+      const queueAction: NextHVACAction = {
+        state: newState,
+        at: this.minWaitTimeReachedAt,
+        idleFirst: newState !== "IDLE" && this.state !== "IDLE",
       };
 
-      // Update State
-      this.state = this.getQueueState(trigger);
-      this.sendUpdate();
+      // Queue immediately if activating aux heat from heat
+      if (newState === "HEAT_AUX" && this.state === "HEAT") {
+        queueAction.at = new Date();
+        queueAction.idleFirst = false;
+      }
+
+      // Don't idle first when switching to circulate
+      if (newState === "CIRCULATE") {
+        queueAction.idleFirst = false;
+      }
+
+      this.nextAction = queueAction;
     }
   }
 
-  canQueue(trigger: E_HVACTrigger): boolean {
-    switch (trigger) {
-      case E_HVACTrigger.idle:
-        return (
-          this.state !== E_HVACState.idle &&
-          this.state !== E_HVACState.startingIdle
-        );
-      case E_HVACTrigger.fan:
-        return (
-          this.state !== E_HVACState.blowing &&
-          this.state !== E_HVACState.startingFan
-        );
-      case E_HVACTrigger.cool:
-        return (
-          this.state !== E_HVACState.cooling &&
-          this.state !== E_HVACState.startingToCool
-        );
-      case E_HVACTrigger.heat:
-        return (
-          this.state !== E_HVACState.heating &&
-          this.state !== E_HVACState.startingHeat
-        );
-      case E_HVACTrigger.heatStage2:
-        return (
-          this.state !== E_HVACState.startingHeatStage2 &&
-          this.state !== E_HVACState.heatingStage2
-        );
-      case E_HVACTrigger.heatEmergency:
-        return (
-          this.state !== E_HVACState.startingEmergencyHeat &&
-          this.state !== E_HVACState.heatingEmergency
-        );
-      default:
-        return false;
+  clock() {
+    if (this.nextAction) {
+      const now = new Date();
+      if (now.getTime() > this.nextAction.at.getTime()) {
+        if (this.nextAction.idleFirst) {
+          this.idle();
+          const nextState = this.nextAction.state;
+          const at = new Date();
+          at.setTime(at.getTime() + this.transitionTime);
+          this.nextAction = {
+            state: nextState,
+            at,
+            idleFirst: false,
+          };
+        } else {
+          const trigger = this.nextAction.state;
+          if (trigger === "IDLE") this.idle();
+          else if (trigger === "CIRCULATE") this.circulate();
+          else if (trigger === "COOL") this.cool();
+          else if (trigger === "HEAT") this.heat();
+          else if (trigger === "HEAT_AUX") this.auxHeat();
+          this.nextAction = null;
+        }
+      }
     }
   }
 }

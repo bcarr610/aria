@@ -1,53 +1,65 @@
 import { Gpio as OnOffGpio, Direction } from "onoff";
+import { isRemote } from "../../utils";
 
-class GPIO implements I_GPIO {
-  emulate: boolean;
-  gpio: OnOffGpio | null;
-  pin: number;
-  value: 1 | 0;
+class GPIO {
+  gpio: OnOffGpio | null = null;
+  private pin: number;
+  private direction: Direction;
+  private _value: number = 0;
+  lastHighTime: Date = new Date();
+  lastLowTime: Date = new Date();
+  lastValueChange: Date = new Date();
 
-  constructor(pin: number, direction: Direction) {
-    this.emulate = process.env.EMULATE === "true";
+  constructor(pin: number, direction: Direction = "out") {
     this.pin = pin;
+    this.direction = direction;
 
-    if (!this.emulate) {
+    if (!isRemote()) {
       this.gpio = new OnOffGpio(this.pin, direction);
-    } else {
-      this.gpio = null;
     }
 
     if (direction === "high") {
-      this.on();
-      this.value = 1;
+      if (!isRemote()) {
+        this.gpio?.writeSync(1);
+      }
+      this.updateValue(1);
+    } else if (direction !== "in") {
+      if (!isRemote()) {
+        this.gpio?.writeSync(0);
+      }
+      this.updateValue(0);
     } else {
-      this.off();
-      this.value = 0;
+      if (!isRemote()) {
+        const val = this.gpio?.readSync() ?? 0;
+        this.updateValue(val);
+      }
     }
   }
 
-  readSync() {
-    return this.gpio?.readSync() ?? this.value;
-  }
-
-  writeSync(value: 1 | 0) {
-    this.gpio?.writeSync(value);
-    this.value = value;
-  }
-
-  on() {
-    if (this.value === 0) {
-      this.writeSync(1);
+  get value(): number {
+    if (!isRemote()) {
+      const val = this.gpio?.readSync() ?? this._value;
+      this.updateValue(val);
     }
+
+    return this._value;
   }
 
-  off() {
-    if (this.value === 1) {
-      this.writeSync(0);
+  set value(val: 1 | 0) {
+    if (val !== this._value && !isRemote()) {
+      this.gpio?.writeSync(val);
     }
+
+    this.updateValue(val);
   }
 
-  get isOn() {
-    return this.value === 1;
+  private updateValue(newValue: number) {
+    if (newValue !== this._value) {
+      this.lastValueChange = new Date();
+      if (newValue === 1) this.lastHighTime = new Date();
+      else if (newValue === 0) this.lastLowTime = new Date();
+      this._value = newValue;
+    }
   }
 }
 

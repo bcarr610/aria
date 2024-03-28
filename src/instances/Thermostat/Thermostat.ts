@@ -1,207 +1,245 @@
 import HVAC from "../HVAC/HVAC";
-import TemperatureSensor from "../DHTSensor/DHTSensor";
-import { E_HVACTrigger, E_ThermostatMode } from "../../enums";
-import {
-  calculateTemperatureChangeSpeedPerHour,
-  getTriggerFromMode,
-} from "../../utils/utils";
+import DHTSensor from "../DHTSensor/DHTSensor";
+import { greatest, timeToMs } from "../../utils/utils";
+import ThermostatSchedule from "../ThermostatSchedule";
+
+export const defaultOpts: ThermostatOptions = {
+  clockSpeed: {
+    unit: "SECONDS",
+    value: 1,
+  },
+  targetReachOffset: 0.4,
+  delaySpeedCalculation: {
+    unit: "MINUTES",
+    value: 7,
+  },
+  auxHeatSpeedBelow: 0.5,
+  auxHeatTempFromTargetBelow: 8,
+  targetPadding: 1,
+  circulateFor: {
+    unit: "MINUTES",
+    value: 30,
+  },
+  circulateEvery: {
+    unit: "HOURS",
+    value: 1,
+  },
+};
 
 class Thermostat {
-  target: number = 72;
-  temperature: number = 72;
-  humidity: number = 0.25;
-  idleSpeedPerHour: number = 0;
-  tempSpeedPerHour: number = 0;
-  // TODO use these to implement cool by / heat by logic
-  coolSpeedPerHour: number = 0;
-  heatSpeedPerHour: number = 0;
-  heat2PerHour: number = 0;
-  heatEPerHour: number = 0;
-  // END TODO
-  config: ThermostatConfig;
-  hvac: HVAC;
-  mode: E_ThermostatMode = E_ThermostatMode.auto;
-  sensor: TemperatureSensor;
-  onUpdate: (thermostat: Thermostat) => void = () => {};
+  private _target: number = 72;
+  private idleSpeed: number = 0;
+  private currentSpeed: number = 0;
+  private _mode: ThermostatMode = "auto";
+  energyMode: EnergyMode = "normal";
+  schedule: ThermostatSchedule;
+  private clock: NodeJS.Timeout | null = null;
+  private clockSpeed: number;
+  private targetReachOffset: number;
+  private delaySpeedCalculation: number;
+  private auxHeatSpeedBelow: number | false;
+  private auxHeatTempFromTargetBelow: number | false;
+  private targetPadding: number;
+  private circulateFor: number | false;
+  private circulateEvery: number | false;
+  private hvac: HVAC;
+  private dhtSensor: DHTSensor;
 
-  constructor(config: ThermostatConfig, sensor: TemperatureSensor, hvac: HVAC) {
-    this.config = config;
-    this.sensor = sensor;
+  constructor(
+    dhtSensor: DHTSensor,
+    hvac: HVAC,
+    schedule?: ThermostatScheduleItem[] | null,
+    opts?: ThermostatOptions
+  ) {
+    const {
+      clockSpeed,
+      targetReachOffset,
+      delaySpeedCalculation,
+      auxHeatSpeedBelow,
+      auxHeatTempFromTargetBelow,
+      targetPadding,
+      circulateFor,
+      circulateEvery,
+    } = defaultOpts;
+    this.clockSpeed = timeToMs(opts?.clockSpeed ?? clockSpeed);
+    this.targetReachOffset = opts?.targetReachOffset ?? targetReachOffset;
+    this.delaySpeedCalculation = timeToMs(
+      opts?.delaySpeedCalculation ?? delaySpeedCalculation
+    );
+    this.auxHeatSpeedBelow = opts?.auxHeatSpeedBelow ?? auxHeatSpeedBelow;
+    this.auxHeatTempFromTargetBelow =
+      opts?.auxHeatTempFromTargetBelow ?? auxHeatTempFromTargetBelow;
+    this.targetPadding = opts?.targetPadding ?? targetPadding;
+    this.circulateFor = timeToMs(opts?.circulateFor ?? circulateFor);
+    this.circulateEvery = timeToMs(opts?.circulateEvery ?? circulateEvery);
+
+    this.dhtSensor = dhtSensor;
     this.hvac = hvac;
-    this.sendUpdate = this.sendUpdate.bind(this);
-    this.onNewSensorData = this.onNewSensorData.bind(this);
-
-    this.sensor.onUpdate = this.onNewSensorData;
+    this.schedule = new ThermostatSchedule(schedule);
   }
 
-  private sendUpdate(): void {
-    if (typeof this.onUpdate === "function") {
-      this.onUpdate(this);
+  set mode(mode: ThermostatMode) {
+    this._mode = mode;
+    if (this._mode !== "auto") {
+      this.hvac.queue(this._mode);
     }
   }
 
-  private get shouldTriggerIdle(): boolean {
-    return (
-      this.temperature >= this.target &&
-      this.temperature <= this.target + 1 &&
-      this.hvac.canQueue(E_HVACTrigger.idle)
-    );
+  set target(target: number) {
+    if (target > 50 && target < 90) {
+      this._target = target;
+    }
   }
 
-  private get shouldCirculate(): boolean {
-    return (
-      new Date().getTime() >=
-        this.hvac.lastTriggers[E_HVACTrigger.idle].getTime() +
-          this.config.hvac.circulateAirEveryMin * 60 * 1000,
-      this.hvac.canQueue(E_HVACTrigger.fan)
-    );
+  get mode() {
+    return this._mode;
   }
 
-  private get shouldTriggerCool(): boolean {
-    const triggerCoolAt = this.target + this.config.targetOffset;
-    return (
-      this.temperature >= triggerCoolAt &&
-      this.hvac.canQueue(E_HVACTrigger.cool)
-    );
+  get target() {
+    return this._target;
   }
 
-  // TODO Implement better logic for when to use stage 2 and e heat
-  private get shouldTriggerHeat(): boolean {
-    const triggerHeatAt = this.target - this.config.targetOffset;
-    return (
-      this.temperature <= triggerHeatAt &&
-      this.hvac.canQueue(E_HVACTrigger.heat)
-    );
-  }
-
-  private get shouldTriggerHeatStage2(): boolean {
+  get isSpeedStable() {
     const now = new Date();
-    const canQueue = this.hvac.canQueue(E_HVACTrigger.heatStage2);
-    const lastHeatTrigger = this.hvac.lastTriggers[E_HVACTrigger.heat];
-    const settings = this.config.hvac.stageSettings.heat.stage2;
-
-    // Hard queue when temperature too cool
-    if (
-      this.temperature <= this.target + settings.targetOffsetTrigger &&
-      canQueue
-    ) {
-      return true;
-    }
-
-    if (
-      now.getTime() >
-        lastHeatTrigger.getTime() + settings.waitTimeMin * 60 * 1000 &&
-      this.tempSpeedPerHour < settings.nonIdleSpeedTrigger &&
-      canQueue
-    ) {
-      return true;
-    }
-
-    return false;
+    const { lastActive, lastInactive } = this.hvac.times[this.hvac.state];
+    const lastStateTime = greatest(lastActive, lastInactive);
+    return now.getTime() > lastStateTime.getTime() + this.delaySpeedCalculation;
   }
 
-  private get shouldTriggerEmergencyHeat(): boolean {
-    const now = new Date();
-    const canQueue = this.hvac.canQueue(E_HVACTrigger.heatEmergency);
-    const lastStage2HeatAt = this.hvac.lastTriggers[E_HVACTrigger.heatStage2];
-    const settings = this.config.hvac.stageSettings.heat.emergency;
+  get preferredAction(): HVACState | null {
+    const now = new Date().getTime();
+    const temp = this.dhtSensor.avg.temperature;
+    const hvacState = this.hvac.state;
 
-    // Hard queue when temperature too cool
-    if (
-      this.temperature <= this.target + settings.targetOffsetTrigger &&
-      canQueue
-    ) {
-      return true;
-    }
+    if (this.isSpeedStable) {
+      if (hvacState === "IDLE") {
+        // Heat or cool?
+        if (temp < this.target - this.targetPadding) {
+          // Should activate aux heat from idle?
+          if (
+            this.auxHeatTempFromTargetBelow &&
+            this.target - temp >= this.auxHeatTempFromTargetBelow
+          ) {
+            return "HEAT_AUX";
+          }
 
-    // If stage2 heating and temperature not rising fast enough
-    if (
-      now.getTime() >
-        lastStage2HeatAt.getTime() + settings.waitTimeMin * 60 * 1000 &&
-      this.tempSpeedPerHour < settings.nonIdleSpeedTrigger &&
-      canQueue
-    ) {
-      return true;
-    }
+          return "HEAT";
+        } else if (temp > this.target + this.targetPadding) {
+          return "COOL";
+        } else {
+          // Should circulate?
+          if (this.circulateEvery) {
+            const lastIdle = this.hvac.times.IDLE.lastActive;
+            if (now - lastIdle.getTime() > this.circulateEvery) {
+              return "CIRCULATE";
+            }
 
-    return false;
-  }
+            return null;
+          }
 
-  private onTHChange(newTemp: number, newHumid: number, at: Date) {
-    // Update temp change speeds
-    this.tempSpeedPerHour = calculateTemperatureChangeSpeedPerHour(
-      this.config.sensors.thSensorReadIntervalSec,
-      this.temperature,
-      newTemp
-    );
+          return null;
+        }
+      } else {
+        // Should trigger auxHeat?
+        if (
+          hvacState === "HEAT" &&
+          this.auxHeatSpeedBelow &&
+          this.currentSpeed < this.auxHeatSpeedBelow
+        ) {
+          return "HEAT_AUX";
+        }
+        // Should stop circulating?
+        else if (
+          hvacState === "CIRCULATE" &&
+          this.circulateFor &&
+          now - this.hvac.times.CIRCULATE.lastActive.getTime() >
+            this.circulateFor
+        ) {
+          return "IDLE";
+        }
+        // Should stop heating?
+        else if (
+          hvacState === "HEAT" &&
+          temp >= this.target + this.targetReachOffset
+        ) {
+          return "IDLE";
+        }
+        // Should stop cooling?
+        else if (
+          hvacState === "COOL" &&
+          temp <= this.target - this.targetReachOffset
+        ) {
+          return "IDLE";
+        }
 
-    if (this.hvac.isIdle) {
-      this.idleSpeedPerHour = calculateTemperatureChangeSpeedPerHour(
-        this.config.sensors.thSensorReadIntervalSec,
-        this.temperature,
-        newTemp
-      );
-    }
-
-    // Update sensor data
-    this.temperature = newTemp;
-    this.humidity = newHumid;
-
-    // Trigger action if in auto
-    if (this.mode !== E_ThermostatMode.auto) {
-      if (this.shouldTriggerIdle) {
-        const idleAt = new Date();
-        idleAt.setTime(idleAt.getTime() + this.config.hvac.idleDelaySec * 1000);
-
-        this.hvac.queue(E_HVACTrigger.idle, idleAt);
-      } else if (this.shouldCirculate) {
-        this.hvac.queue(E_HVACTrigger.fan);
-      } else if (this.shouldTriggerCool) {
-        this.hvac.queue(E_HVACTrigger.cool);
-      } else if (this.shouldTriggerEmergencyHeat) {
-        this.hvac.queue(E_HVACTrigger.heatEmergency);
-      } else if (this.shouldTriggerHeatStage2) {
-        this.hvac.queue(E_HVACTrigger.heatStage2);
-      } else if (this.shouldTriggerHeat) {
-        this.hvac.queue(E_HVACTrigger.heat);
+        return null;
       }
     }
 
-    this.sendUpdate();
+    return null;
   }
 
-  private onNewSensorData(sensor: TemperatureSensor): void {
-    if (
-      sensor.avgTemp !== this.temperature ||
-      sensor.avgHumid !== this.humidity
-    ) {
-      this.onTHChange(sensor.avgTemp, sensor.avgHumid, sensor.lastReading.at);
+  private tick() {
+    const now = new Date().getTime();
+    this.dhtSensor.clock();
+    this.hvac.clock();
+
+    // Should record temperature speed?
+    if (this.isSpeedStable) {
+      if (this.hvac.state === "IDLE") {
+        this.idleSpeed = this.dhtSensor.speed;
+      }
+
+      this.currentSpeed = this.dhtSensor.speed;
     }
-  }
 
-  changeMode(mode: E_ThermostatMode): void {
-    this.mode = mode;
+    // Should activate something from schedule?
+    if (this.schedule.list.length) {
+      const { target, time } = this.schedule.first;
 
-    if (this.mode !== E_ThermostatMode.auto) {
-      const trigger = getTriggerFromMode(mode);
-      this.hvac.queue(trigger);
+      if (now >= time.getTime()) {
+        this.target = target;
+        this.schedule.remove("first");
+      }
     }
-    this.sendUpdate();
-  }
 
-  changeTarget(target: number): void {
-    if (target > 50 && target < 90) {
-      this.target = target;
-      this.sendUpdate();
+    // Should queue HVAC event?
+    if (this.mode === "auto") {
+      const preferred = this.preferredAction;
+      if (preferred !== null) {
+        this.hvac.queue(preferred);
+      }
+    } else {
+      switch (this.mode) {
+        case "CIRCULATE":
+          this.hvac.queue("CIRCULATE");
+        case "COOL":
+          this.hvac.queue("COOL");
+        case "HEAT":
+          this.hvac.queue("HEAT");
+        case "HEAT_AUX":
+          this.hvac.queue("HEAT_AUX");
+        case "IDLE":
+        default:
+          this.hvac.queue("IDLE");
+      }
     }
   }
 
   start() {
-    this.sensor.start();
+    if (this.clock !== null) {
+      clearInterval(this.clock);
+      this.clock = null;
+    }
+
+    this.clock = setInterval(this.tick.bind(this), this.clockSpeed);
   }
 
   stop() {
-    this.sensor.stop();
+    if (this.clock !== null) {
+      clearInterval(this.clock);
+      this.clock = null;
+    }
   }
 }
 

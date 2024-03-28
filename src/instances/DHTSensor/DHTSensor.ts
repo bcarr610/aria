@@ -1,126 +1,111 @@
 import sensor, { SensorData, SensorType } from "node-dht-sensor";
+import { calculateTempChangeSpeed, mean, random } from "../../utils";
+import { isRemote } from "../../utils";
+
+type AvgReading = { temperature: number; humidity: number };
 
 class DHTSensor {
-  emulate: boolean;
-  sensorType: SensorType;
-  readSpeedMS: number;
-  thSensorReadLength: number;
-  interval: NodeJS.Timeout | null = null;
-  pin: number;
-  readings: DHTSensorReading[] = [];
+  speed: number = 0;
   avgTemp: number = 72;
   avgHumid: number = 0.25;
-  onUpdate: (dhtSensor: DHTSensor) => void = () => {};
+  private sensorType: SensorType;
+  private meanPrecision: number;
+  private pin: number;
+  private readings: DHTSensorReading[] = [];
+  private tempOffset: number = 0;
+  private humidOffset: number = 0;
+  onUpdate: (data: DHTUpdateData) => void = () => {};
 
   constructor(
     sensorType: SensorType,
     pin: number,
-    readSpeedMS: number,
-    thSensorReadLength: number
+    meanPrecision: number,
+    tempOffset: number = 0,
+    humidOffset: number = 0
   ) {
-    this.emulate = process.env.EMULATE === "true";
     this.sensorType = sensorType;
     this.pin = pin;
-    this.readSpeedMS = readSpeedMS;
-    this.thSensorReadLength = thSensorReadLength;
+    this.meanPrecision = meanPrecision;
+    this.tempOffset = tempOffset;
+    this.humidOffset = humidOffset;
 
-    sensor?.initialize(this.sensorType, this.pin);
+    this.initialize(this.sensorType, this.pin);
+    this.sendUpdate();
   }
 
-  sendUpdate() {
-    if (typeof this.onUpdate === "function") this.onUpdate(this);
-  }
-
-  getSensorData(mockData?: SensorData): DHTSensorReading {
-    const readSensor = () => {
-      try {
-        return sensor?.read(this.sensorType, this.pin);
-      } catch (err) {
-        if (!this.emulate) console.error(err);
-        return {
-          temperature: this.avgTemp,
-          humidity: this.avgHumid,
-        };
-      }
-    };
-
-    const { temperature, humidity } = mockData || readSensor();
-
+  get avg(): AvgReading {
     return {
-      temperature,
-      humidity,
+      temperature: this.avgTemp,
+      humidity: this.avgHumid,
+    };
+  }
+
+  private sendUpdate() {
+    if (typeof this.onUpdate === "function") {
+      this.onUpdate({
+        temperature: this.avgTemp,
+        humidity: this.avgHumid,
+        speed: this.speed,
+      });
+    }
+  }
+
+  private initialize(type: SensorType, pin: number): boolean {
+    if (isRemote()) {
+      return true;
+    }
+
+    return sensor?.initialize(type, pin);
+  }
+
+  private read(): DHTSensorReading {
+    const reading: SensorData = isRemote()
+      ? {
+          temperature: random(65, 78),
+          humidity: random(0, 1),
+        }
+      : sensor?.read(this.sensorType, this.pin);
+    return {
+      temperature: reading.temperature + this.tempOffset,
+      humidity: reading.humidity + this.humidOffset,
       at: new Date(),
     };
   }
 
-  get lastReading() {
-    return this.readings.slice(-1)[0];
+  private addReading(reading: Omit<DHTSensorReading, "at">) {
+    if (this.readings.length >= this.meanPrecision) {
+      this.readings.shift();
+    }
+    this.readings.push({
+      ...reading,
+      at: new Date(),
+    });
   }
 
-  avgReading(readings: DHTSensorReading[]) {
-    const tmpAdd: number = readings
-      .map((v) => v.temperature)
-      .reduce((p, c) => {
-        p += c;
-        return p;
-      }, 0);
-    const humidAdd: number = readings
-      .map((v) => v.humidity)
-      .reduce((p, c) => {
-        p += c;
-        return p;
-      }, 0);
-    return {
-      temperature:
-        readings.length > 0
-          ? Number((tmpAdd / readings.length).toFixed(2))
-          : this.avgTemp,
-      humidity:
-        readings.length > 0
-          ? Number((humidAdd / readings.length).toFixed(2))
-          : this.avgHumid,
-    };
-  }
+  clock() {
+    const now = new Date();
+    const reading = this.read();
+    const rate =
+      this.readings.length > 0
+        ? this.readings.slice(-1)[0].at.getTime() - now.getTime()
+        : 0;
+    const oldAvgTemp = this.avg.temperature;
+    this.addReading(reading);
+    const newAvgTemp = mean(this.readings.map((v) => v.temperature));
+    const newAvgHumid = mean(this.readings.map((v) => v.humidity));
+    const newSpeed = calculateTempChangeSpeed(rate, oldAvgTemp, newAvgTemp);
 
-  tick(mockData?: SensorData) {
-    let shouldSendUpdate = false;
-    const reading = this.getSensorData(mockData);
-    const currentAvg = this.avgReading(this.readings);
-
-    if (this.readings.length < this.thSensorReadLength) {
-      this.readings.push(reading);
-    } else {
-      this.readings = [...this.readings.slice(1), reading];
+    if (
+      newAvgTemp !== this.avgTemp ||
+      newAvgHumid !== this.avgHumid ||
+      this.speed !== newSpeed
+    ) {
+      this.sendUpdate();
     }
 
-    const newAvg = this.avgReading(this.readings);
-    if (newAvg.temperature !== currentAvg.temperature) {
-      if (!shouldSendUpdate) shouldSendUpdate = true;
-      this.avgTemp = newAvg.temperature;
-    }
-
-    if (newAvg.humidity !== currentAvg.humidity) {
-      if (!shouldSendUpdate) shouldSendUpdate = true;
-      this.avgHumid = newAvg.humidity;
-    }
-
-    if (shouldSendUpdate) this.sendUpdate();
-  }
-
-  start(mockData?: SensorData) {
-    if (this.interval !== null) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-    this.tick(mockData);
-    this.interval = setInterval(this.tick.bind(this), this.readSpeedMS);
-  }
-
-  stop() {
-    if (this.interval !== null) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
+    this.avgTemp = newAvgTemp;
+    this.avgHumid = newAvgHumid;
+    this.speed = newSpeed;
   }
 }
 

@@ -1,77 +1,67 @@
-type HVACWireMap = {
-  Y1: number;
-  G: number;
-  OB: number;
-  W1: number;
-  W2: number;
-};
+type HVACState = "IDLE" | "CIRCULATE" | "COOL" | "HEAT" | "HEAT_AUX";
+type ThermostatMode = "auto" | HVACState;
+type HVACComponentName = "heatPump" | "compressor" | "auxHeat" | "fan";
+type TimeUnit = "DAYS" | "HOURS" | "MINUTES" | "SECONDS" | "MILLISECONDS";
+type EnergyMode = "away" | "eco" | "normal";
 
-type HVACControl = {
-  wire: import("../enums").E_HVACWire;
-  gpio: I_GPIO;
-  component: import("../enums").E_HVACComponent;
-  trigger: Omit<
-    import("../enums").E_HVACTrigger,
-    import("../enums").E_HVACTrigger.idle
-  >;
-};
-
-type HVACWireConfigs = {
-  "5_WIRE_STANDARD": (thermostatConfig: ThermostatConfig) => HVACControl[];
-};
-
-type HVACQueueItem = {
-  trigger: import("../enums").E_HVACTrigger;
-  control?: HVACControl;
+type NextHVACAction = {
+  idleFirst: boolean;
+  state: HVACState;
   at: Date;
 };
 
-type ThermostatConfig = {
-  targetOffset: number;
-  tempRangeSpeedOffset: number;
-  sensors: {
-    thSensorReadIntervalSec: number;
-    thSensorReadLength: number;
+type HVACComponents = {
+  [key in HVACComponentName]: import("../instances/GPIO/GPIO").default;
+};
+
+type ThermostatOptions = {
+  clockSpeed: Time;
+  targetReachOffset: number;
+  delaySpeedCalculation: Time;
+  auxHeatSpeedBelow: number;
+  auxHeatTempFromTargetBelow: number;
+  targetPadding: number;
+  circulateFor: Time;
+  circulateEvery: Time;
+};
+
+type ThermostatScheduleItem = {
+  target: number;
+  time: Date;
+};
+
+type Time = {
+  unit: TimeUnit;
+  value: number;
+};
+
+type NextTarget = {
+  to: number;
+  at: Date;
+};
+
+type HVACStateTimes = {
+  [key in HVACState]: {
+    lastActive: Date;
+    lastInactive: Date;
   };
-  hvac: {
-    idleDelaySec: number;
-    circulateAirEveryMin: number;
-    circulateForMin: number;
-    stageSettings: {
-      heat: {
-        stage2: {
-          nonIdleSpeedTrigger: number;
-          targetOffsetTrigger: number;
-          waitTimeMin: number;
-        };
-        emergency: {
-          nonIdleSpeedTrigger: number;
-          targetOffsetTrigger: number;
-          waitTimeMin: number;
-        };
-      };
-    };
-  };
-  gpio: {
-    thSensor: {
-      dataPin: number;
-    };
-    hvacWire: {
-      Y1: number;
-      G: number;
-      OB: number;
-      W1: number;
-      W2: number;
+};
+
+type HVACUpdateData = {
+  state: HVACState;
+  nextAction: NextHVACAction | null;
+  times: HVACStateTimes;
+  components: {
+    [key in HVACComponentName]: {
+      lastActiveTime: Date;
+      lastInactiveTime: Date;
+      isActive: boolean;
     };
   };
 };
 
-type HVACConfigJson = {
-  triggerDelayMinutes: number;
-  wireConfiguration: keyof HVACWireConfigs;
-};
-
-type HVACConfig = HVACConfigJson & {
-  clockSpeed: number;
-  controls: HVACControl[];
+type DHTUpdateData = {
+  temperature: number;
+  humidity: number;
+  speed: number;
 };

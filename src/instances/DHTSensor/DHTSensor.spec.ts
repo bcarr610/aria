@@ -1,105 +1,81 @@
-import { disableLogs, enableLogs } from "../../test/utils";
-import { wait } from "../../utils";
+import { expectSoftTimeCloseTo } from "../../test/utils";
 import DHTSensor from "./DHTSensor";
 
-describe("DHTSensor", () => {
-  afterEach(() => {
-    jest.clearAllMocks();
+let dht = new DHTSensor(11, 0, 4);
+
+beforeEach(() => {
+  dht = new DHTSensor(11, 0, 4);
+});
+
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
+describe("DHTSensor.sendUpdate", () => {
+  it("Should execute onUpdate property", () => {
+    const mock = jest.spyOn(dht, "onUpdate");
+    dht["sendUpdate"]();
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DHTSensor.initialize", () => {
+  it("Should return true ", () => {
+    const res = dht["initialize"](11, 0);
+    expect(res).toBe(true);
+  });
+});
+
+describe("DHTSensor.read", () => {
+  it("Should return reading", () => {
+    const res = dht["read"]();
+    expect(res.temperature).toBeGreaterThan(65);
+    expect(res.temperature).toBeLessThan(78);
+    expectSoftTimeCloseTo(res.at, new Date());
+  });
+});
+
+describe("DHTSensor.avg", () => {
+  it("Should return avgTemp and avgHumid", () => {
+    const res = dht.avg;
+    expect(res.temperature).toBe(dht.avgTemp);
+    expect(res.humidity).toBe(dht.avgHumid);
+  });
+});
+
+describe("DHTSensor.addReading", () => {
+  it("Should add reading if less than mean precision", () => {
+    dht["addReading"]({ temperature: 70, humidity: 0.25 });
+    expect(dht["readings"].length).toBe(1);
+    expect(dht["readings"][0].temperature).toBe(70);
+    expect(dht["readings"][0].humidity).toBe(0.25);
   });
 
-  beforeEach(() => {
-    process.env.EMULATE = "true";
+  it("Should shift reading if greater than / equal to mean precision", () => {
+    expect(dht["readings"].length).toBe(0);
+    for (let i = 0; i < dht["meanPrecision"] + 1; i++) {
+      dht["addReading"]({ temperature: 70 + i, humidity: 0.25 + i * 0.1 });
+    }
+    expect(dht["readings"].length).toBe(dht["meanPrecision"]);
+    expect(dht["readings"].slice(-1)[0].temperature).toBe(
+      70 + dht["meanPrecision"]
+    );
+    expect(dht["readings"].slice(-1)[0].humidity).toBe(
+      0.25 + 0.1 * dht["meanPrecision"]
+    );
   });
+});
 
-  it("Should not tick unless started", async () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    const mock = jest.spyOn(sensor, "tick");
-    await wait(40);
-    expect(mock).toHaveBeenCalledTimes(0);
-  });
-
-  it("Should tick when started", async () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    const mock = jest.spyOn(sensor, "tick");
-    sensor.start();
-    await wait(39);
-    sensor.stop();
-    expect(mock).toHaveBeenCalledTimes(4);
-  });
-
-  it("Should send updates only on temperature / humidity changes", () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    const mock = jest.spyOn(sensor, "onUpdate");
-    expect(sensor.avgTemp).toBe(72);
-    expect(sensor.avgHumid).toBe(0.25);
-    sensor.tick({ temperature: 72, humidity: 0.25 });
-    sensor.tick({ temperature: 72, humidity: 0.05 });
-    sensor.tick({ temperature: 70, humidity: 0.25 });
-    sensor.tick({ temperature: 65, humidity: 0.25 });
-    expect(mock).toHaveBeenCalledTimes(3);
-  });
-
-  it("Should average temp and humidity correctly", () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    sensor.tick({ temperature: 68, humidity: 0.1 });
-    sensor.tick({ temperature: 68, humidity: 0.1 });
-    sensor.tick({ temperature: 68, humidity: 0.1 });
-    sensor.tick({ temperature: 64, humidity: 0.35 });
-    sensor.tick({ temperature: 63, humidity: 0.55 });
-    sensor.tick({ temperature: 62, humidity: 0.56 });
-    expect(sensor.avgTemp).toBe(65);
-    expect(sensor.avgHumid).toBe(0.33);
-  });
-
-  it("Should stop ticking", async () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    const mock = jest.spyOn(sensor, "tick");
-    sensor.start();
-    await wait(39);
-    sensor.stop();
-    await wait(40);
-    expect(mock).toHaveBeenCalledTimes(4);
-  });
-
-  it("Should return last reading", () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    sensor.tick({ temperature: 68, humidity: 0.1 });
-    expect(sensor.lastReading).toEqual(sensor.readings[0]);
-  });
-
-  it("Should retrieve sensor data", () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    const test1 = sensor.getSensorData();
-    const test2 = sensor.getSensorData({ temperature: 68, humidity: 0.1 });
-    expect(test1).toEqual({
-      temperature: sensor.avgTemp,
-      humidity: sensor.avgHumid,
-      at: test1.at,
-    });
-    expect(test2).toEqual({
-      temperature: 68,
-      humidity: 0.1,
-      at: test2.at,
-    });
-  });
-
-  it("Should clear existing interval if start called more than once", () => {
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    sensor.start();
-    sensor.start();
-    sensor.stop();
-    expect(true).toBe(true);
-  });
-
-  it("Should not emulate", () => {
-    disableLogs();
-    delete process.env.EMULATE;
-    const sensor = new DHTSensor(11, 1, 10, 5);
-    const mock = jest.spyOn(sensor, "getSensorData");
-    try {
-      sensor.getSensorData();
-    } catch {}
-    expect(mock).toThrow();
-    enableLogs();
+describe("DHTSensor.clock", () => {
+  it("Should update class state", () => {
+    const oldTemp = dht.avgTemp;
+    const oldHumid = dht.avgHumid;
+    const oldSpeed = dht.speed;
+    for (let i = 0; i < 20; i++) {
+      dht.clock();
+    }
+    expect(dht.avgTemp).not.toBe(oldTemp);
+    expect(dht.avgHumid).not.toBe(oldHumid);
+    expect(dht.speed).not.toBe(oldSpeed);
   });
 });
