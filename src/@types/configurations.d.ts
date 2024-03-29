@@ -1,3 +1,8 @@
+type AuxHeatSettings = {
+  belowSpeed?: number;
+  belowTempFromTarget?: number;
+};
+
 type ThermostatConfig = {
   hvac: {
     minCycleTime: Time;
@@ -20,15 +25,13 @@ type ThermostatConfig = {
   preferences: {
     energyMode: EnergyMode;
     auxHeat: {
-      [key in EnergyMode]:
-        | false
-        | { belowSpeed: number; belowTempFromTarget: number };
+      [key in EnergyMode]?: AuxHeatSettings;
     };
     targetPadding: {
-      [key in EnergyMode]: number;
+      [key in EnergyMode]?: number;
     };
     circulate: {
-      [key in EnergyMode]: false | { for: Time; every: Time };
+      [key in EnergyMode]?: { for?: Time; every?: Time };
     };
     maxRuntime: Time; // TODO IMPLEMENT MAX RUNTIME ON HVAC CLASS
   };

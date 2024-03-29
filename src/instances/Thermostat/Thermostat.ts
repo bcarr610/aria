@@ -37,42 +37,49 @@ class Thermostat {
   private clockSpeed: number;
   private targetReachOffset: number;
   private delaySpeedCalculation: number;
-  private auxHeatSpeedBelow: number | false;
-  private auxHeatTempFromTargetBelow: number | false;
+  private auxHeat: AuxHeatSettings;
   private targetPadding: number;
   private circulateFor: number | false;
   private circulateEvery: number | false;
+  private maxRuntime: number;
   private hvac: HVAC;
   private dhtSensor: DHTSensor;
 
   constructor(
     dhtSensor: DHTSensor,
     hvac: HVAC,
-    schedule?: ThermostatScheduleItem[] | null,
-    opts?: ThermostatOptions
+    clockSpeed: Time,
+    delaySpeedCalculation: Time,
+    targetReachOffset: number,
+    preferences?: ThermostatConfig["preferences"],
+    schedule?: ThermostatScheduleItem[] | null
   ) {
-    const {
-      clockSpeed,
-      targetReachOffset,
-      delaySpeedCalculation,
-      auxHeatSpeedBelow,
-      auxHeatTempFromTargetBelow,
-      targetPadding,
-      circulateFor,
-      circulateEvery,
-    } = defaultOpts;
-    this.clockSpeed = timeToMs(opts?.clockSpeed ?? clockSpeed);
-    this.targetReachOffset = opts?.targetReachOffset ?? targetReachOffset;
+    this.clockSpeed = timeToMs(clockSpeed ?? 1000);
+    this.targetReachOffset = targetReachOffset ?? 0.4;
     this.delaySpeedCalculation = timeToMs(
-      opts?.delaySpeedCalculation ?? delaySpeedCalculation
+      delaySpeedCalculation ?? timeToMs({ unit: "MINUTES", value: 10 })
     );
-    this.auxHeatSpeedBelow = opts?.auxHeatSpeedBelow ?? auxHeatSpeedBelow;
-    this.auxHeatTempFromTargetBelow =
-      opts?.auxHeatTempFromTargetBelow ?? auxHeatTempFromTargetBelow;
-    this.targetPadding = opts?.targetPadding ?? targetPadding;
-    this.circulateFor = timeToMs(opts?.circulateFor ?? circulateFor);
-    this.circulateEvery = timeToMs(opts?.circulateEvery ?? circulateEvery);
-
+    this.auxHeat = {
+      belowSpeed: preferences?.auxHeat?.[this.energyMode]?.belowSpeed ?? 0.2,
+      belowTempFromTarget:
+        preferences?.auxHeat?.[this.energyMode]?.belowTempFromTarget ?? 10,
+    };
+    this.targetPadding = preferences?.targetPadding?.[this.energyMode] ?? 1;
+    this.circulateFor = timeToMs(
+      preferences?.circulate?.[this.energyMode]?.for ?? {
+        unit: "MINUTES",
+        value: 10,
+      }
+    );
+    this.circulateEvery = timeToMs(
+      preferences?.circulate?.[this.energyMode]?.every ?? {
+        unit: "MINUTES",
+        value: 30,
+      }
+    );
+    this.maxRuntime = timeToMs(
+      preferences?.maxRuntime ?? { unit: "HOURS", value: 2 }
+    );
     this.dhtSensor = dhtSensor;
     this.hvac = hvac;
     this.schedule = new ThermostatSchedule(schedule);
@@ -111,14 +118,21 @@ class Thermostat {
     const temp = this.dhtSensor.avg.temperature;
     const hvacState = this.hvac.state;
 
+    if (
+      hvacState !== "IDLE" &&
+      this.hvac.times[hvacState].lastActive.getTime() + this.maxRuntime <= now
+    ) {
+      return "IDLE";
+    }
+
     if (this.isSpeedStable) {
       if (hvacState === "IDLE") {
         // Heat or cool?
         if (temp < this.target - this.targetPadding) {
           // Should activate aux heat from idle?
           if (
-            this.auxHeatTempFromTargetBelow &&
-            this.target - temp >= this.auxHeatTempFromTargetBelow
+            this.auxHeat.belowTempFromTarget &&
+            this.target - temp >= this.auxHeat.belowTempFromTarget
           ) {
             return "HEAT_AUX";
           }
@@ -143,8 +157,8 @@ class Thermostat {
         // Should trigger auxHeat?
         if (
           hvacState === "HEAT" &&
-          this.auxHeatSpeedBelow &&
-          this.currentSpeed < this.auxHeatSpeedBelow
+          this.auxHeat.belowSpeed &&
+          this.currentSpeed < this.auxHeat.belowSpeed
         ) {
           return "HEAT_AUX";
         }
