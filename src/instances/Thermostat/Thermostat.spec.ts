@@ -244,8 +244,29 @@ describe("Thermostat.preferredAction", () => {
 });
 
 describe("Thermostat.tick", () => {
-  it("Should set idle speed when idle and speed is stable", async () => {});
-  it("Should set current speed when speed stable", async () => {});
-  it("Should queue preferred action when mode is auto", async () => {});
-  it("Should queue, manual modes", async () => {});
+  it("Should set speeds when speed is stable", async () => {
+    thermostat["tick"]();
+    thermostat["dhtSensor"].speed = 1;
+    expect(thermostat["idleSpeed"]).toBe(0);
+    expect(thermostat["currentSpeed"]).toBe(0);
+    await wait(11);
+    thermostat["tick"]();
+    expect(thermostat["idleSpeed"]).not.toBe(0);
+    expect(thermostat["currentSpeed"]).not.toBe(0);
+  });
+
+  it("Should queue preferred action when mode is auto", async () => {
+    thermostat.target = 80;
+    thermostat["tick"]();
+    expect(thermostat["hvac"].nextAction).toBeNull();
+    await wait(11);
+    thermostat["tick"]();
+    expect(thermostat["hvac"].nextAction?.state).toBe("HEAT");
+  });
+
+  it("Should queue, manual modes", async () => {
+    thermostat.mode = "HEAT";
+    thermostat["tick"]();
+    expect(thermostat["hvac"].nextAction?.state).toBe("HEAT");
+  });
 });

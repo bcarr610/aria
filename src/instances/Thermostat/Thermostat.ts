@@ -226,16 +226,31 @@ class Thermostat {
     } else {
       switch (this.mode) {
         case "CIRCULATE":
-          this.hvac.queue("CIRCULATE");
+          if (this.hvac.state !== "CIRCULATE") {
+            this.hvac.queue("CIRCULATE");
+          }
+          break;
         case "COOL":
-          this.hvac.queue("COOL");
+          if (this.hvac.state !== "COOL") {
+            this.hvac.queue("COOL");
+          }
+          break;
         case "HEAT":
-          this.hvac.queue("HEAT");
+          if (this.hvac.state !== "HEAT") {
+            this.hvac.queue("HEAT");
+          }
+          break;
         case "HEAT_AUX":
-          this.hvac.queue("HEAT_AUX");
+          if (this.hvac.state !== "HEAT_AUX") {
+            this.hvac.queue("HEAT_AUX");
+          }
+          break;
         case "IDLE":
         default:
-          this.hvac.queue("IDLE");
+          if (this.hvac.state !== "IDLE") {
+            this.hvac.queue("IDLE");
+          }
+          break;
       }
     }
   }
