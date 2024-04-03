@@ -6,7 +6,7 @@ import AriaDevice from "src/instances/AriaDevice";
 class HubController<T extends AriaDeviceType> extends AriaDevice<T> {
   private socketId: string | undefined;
   private socket: Socket<
-    ClientToHubEvents[keyof ClientToHubEvents],
+    ClientToHubEvents["hubController"] & ClientToHubEvents["thermostat"],
     HubToClientEvents[keyof HubToClientEvents]
   >;
 
@@ -30,21 +30,16 @@ class HubController<T extends AriaDeviceType> extends AriaDevice<T> {
       this.logger.info(`${this.deviceId} Disconnected`);
     });
 
-    this.socket.on("request:system:info", () => {
-      this.socket.emit("system:info", this.deviceId, this.telemetry.systemInfo);
-    });
-
-    this.socket.on("request:system:stats", async () => {
-      const stats = await this.telemetry.stats();
-      this.socket.emit("system:telemetry", this.deviceId, stats);
-    });
+    this.socket.on("error", (deviceId, err) => {});
   }
 
-  on<EV extends keyof HubToClientEvents[T]>(ev: EV, listener: HubToClientEvents[T][EV]) {
+  on<EV extends keyof ClientToHubEvents[T]>(ev: EV, listener: ClientToHubEvents[T][EV]) {
     this.socket.on(ev as any, listener as any);
   }
 
-  emit<EV extends keyof ClientToHubEvents[T]>(ev: EV, ...args: ClientToHubParams<T, EV>) {
+  emit<EV extends keyof HubToClientEvents[T]>(ev: EV, ...args: HubToClientParams<T, EV>) {
     this.socket.emit(ev as any, ...(args as any));
   }
 }
+
+export default HubController;

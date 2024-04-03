@@ -8,7 +8,7 @@ import Logger from "./Logger";
 import PersistentStateMachine from "./PersistentStateMachine";
 import Telemetry from "./Telemetry";
 
-class AriaDevice<T extends AriaDeviceType> {
+class AriaDevice<T extends keyof ClientDeviceEvents> {
   private deviceType: T;
   private deviceName: string;
   private deviceState: PersistentStateMachine<PersistentDeviceState>;

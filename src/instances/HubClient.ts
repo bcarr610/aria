@@ -1,9 +1,9 @@
 import socket, { Socket } from "socket.io-client";
 import AriaDevice from "./AriaDevice";
 
-class HubClient<T extends AriaDeviceType> extends AriaDevice<T> {
+class HubClient<T extends keyof ClientDeviceEvents> extends AriaDevice<T> {
   private socketId: string | undefined;
-  private socket: Socket<HubToClientEvents["global"], ClientToHubEvents["global"]>;
+  private socket: Socket<SharedClientEvents, SharedHubEvents>;
 
   constructor(deviceType: T, deviceName: string, opts: ClientDeviceArgs) {
     super(deviceType, deviceName, opts);
@@ -31,15 +31,15 @@ class HubClient<T extends AriaDeviceType> extends AriaDevice<T> {
 
     this.socket.on("request:system:stats", async () => {
       const stats = await this.telemetry.stats();
-      this.socket.emit("system:telemetry", this.deviceId, stats);
+      this.socket.emit("system:stats", this.deviceId, stats);
     });
   }
 
-  on<EV extends keyof HubToClientEvents[T]>(ev: EV, listener: HubToClientEvents[T][EV]) {
+  on<EV extends keyof ClientDeviceEvents[T]>(ev: EV, listener: ClientDeviceEvents[T][EV]) {
     this.socket.on(ev as any, listener as any);
   }
 
-  emit<EV extends keyof ClientToHubEvents[T]>(ev: EV, ...args: ClientToHubParams<T, EV>) {
+  emit<EV extends keyof HubEvents[T]>(ev: EV, ...args: HubToClientParams<T, EV>) {
     this.socket.emit(ev as any, ...(args as any));
   }
 }
