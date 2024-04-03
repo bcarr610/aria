@@ -7,7 +7,7 @@ type EnergyMode = "away" | "eco" | "normal";
 type NextHVACAction = {
   idleFirst: boolean;
   state: HVACState;
-  at: Date;
+  at: number;
 };
 
 type HVACComponents = {
@@ -25,9 +25,17 @@ type ThermostatOptions = {
   circulateEvery: Time;
 };
 
+type ThermostatRoutine = {
+  target?: number;
+  energyMode?: EnergyMode;
+  hms: HMS;
+  lastActivated: MDY | null;
+  active: 0 | 1;
+};
+
 type ThermostatScheduleItem = {
   target: number;
-  time: Date;
+  time: number;
 };
 
 type Time = {
@@ -37,31 +45,35 @@ type Time = {
 
 type NextTarget = {
   to: number;
-  at: Date;
+  at: number;
 };
 
 type HVACStateTimes = {
   [key in HVACState]: {
-    lastActive: Date;
-    lastInactive: Date;
+    lastActive: number;
+    lastInactive: number;
   };
 };
 
-type HVACUpdateData = {
-  state: HVACState;
-  nextAction: NextHVACAction | null;
-  times: HVACStateTimes;
-  components: {
-    [key in HVACComponentName]: {
-      lastActiveTime: Date;
-      lastInactiveTime: Date;
-      isActive: boolean;
+type ThermostatUpdateData = {
+  thermostat: {
+    idleSpeed: number;
+    currentSpeed: number;
+    state: ThermostatPersistentState;
+  };
+  hvac: {
+    state: HVACState;
+    currentState: HVACPersistentState;
+    nextAction: NextHVACAction | null;
+    times: HVACStateTimes;
+    components: {
+      [key in HVACComponentName]: boolean;
     };
   };
-};
-
-type DHTUpdateData = {
-  temperature: number;
-  humidity: number;
-  speed: number;
+  dht: {
+    temperature: number;
+    humidity: number;
+    speed: number;
+    state: DHTPersistentState;
+  };
 };

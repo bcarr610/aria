@@ -1,7 +1,7 @@
 import GPIO from "../GPIO/GPIO";
 import HVAC from "../HVAC/HVAC";
 import DHTSensor from "../DHTSensor/DHTSensor";
-import Thermostat from "./Thermostat";
+import Thermostat from "./ThermostatController";
 import { timeToMs, wait } from "../../utils";
 
 const preferences: ThermostatConfig["preferences"] = {
@@ -73,29 +73,21 @@ describe("Thermostat.constructor", () => {
     expect(thermostat["auxHeat"]["belowSpeed"]).toBe(0.2);
     expect(thermostat["auxHeat"]["belowTempFromTarget"]).toBe(10);
     expect(thermostat["targetPadding"]).toBe(1);
-    expect(thermostat["circulateFor"]).toBe(
-      timeToMs({ unit: "MINUTES", value: 10 })
-    );
-    expect(thermostat["circulateEvery"]).toBe(
-      timeToMs({ unit: "MINUTES", value: 30 })
-    );
+    expect(thermostat["circulateFor"]).toBe(timeToMs({ unit: "MINUTES", value: 10 }));
+    expect(thermostat["circulateEvery"]).toBe(timeToMs({ unit: "MINUTES", value: 30 }));
   });
 
   it("Should construct with supplied options", () => {
     expect(thermostat["clockSpeed"]).toBe(10);
     expect(thermostat["targetReachOffset"]).toBe(0.4);
     expect(thermostat["delaySpeedCalculation"]).toBe(10);
-    expect(thermostat["auxHeat"]["belowSpeed"]).toBe(
-      preferences.auxHeat.normal?.belowSpeed
-    );
+    expect(thermostat["auxHeat"]["belowSpeed"]).toBe(preferences.auxHeat.normal?.belowSpeed);
     expect(thermostat["auxHeat"]["belowTempFromTarget"]).toBe(
       preferences.auxHeat.normal?.belowTempFromTarget
     );
     expect(thermostat["targetPadding"]).toBe(preferences.targetPadding.normal);
     expect(thermostat["circulateFor"]).toBe(
-      timeToMs(
-        preferences.circulate.normal?.for ?? { unit: "MILLISECONDS", value: 10 }
-      )
+      timeToMs(preferences.circulate.normal?.for ?? { unit: "MILLISECONDS", value: 10 })
     );
     expect(thermostat["circulateEvery"]).toBe(
       timeToMs(

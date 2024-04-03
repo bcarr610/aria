@@ -1,5 +1,7 @@
 import os from "node:os";
 import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
 
 export const getHost = (): string => {
   let host: string = os.hostname();
@@ -27,11 +29,7 @@ export const wait = async (ms: number) =>
     setTimeout(resolve, ms);
   });
 
-export const calculateTimeToReachTemp = (
-  rate: number,
-  currentTemp: number,
-  target: number
-) => {
+export const calculateTimeToReachTemp = (rate: number, currentTemp: number, target: number) => {
   const diff = target - currentTemp;
   if (diff === 0) return 0;
   if (rate === 0) return diff > 0 ? +Infinity : -Infinity;
@@ -97,21 +95,93 @@ export const mean = (input: number[], precision: number = 2) => {
   return Number((sum(input) / input.length).toFixed(precision));
 };
 
-export const random = (
-  min: number,
-  max: number,
-  precision: number = 2
-): number => {
+export const random = (min: number, max: number, precision: number = 2): number => {
   return Number((Math.random() * (max - min) + min).toFixed(precision));
 };
 
 export const isRemote = () => process.env.NODE_ENV === "remote";
 export const isDev = () => process.env.NODE_ENV === "development";
 export const isProd = () => process.env.NODE_ENV === "production";
-export const getRoot = () => process.cwd();
 
-export const readJsonSync = <T>(path: string): T => {
-  const content = fs.readFileSync(path, "utf-8");
-  const json: T = JSON.parse(content) as unknown as T;
-  return json;
+export const deepMerge = <T extends object>(target: T, ...sources: any[]): T => {
+  if (!sources.length) return target;
+  const source = sources.shift();
+
+  if (isMergeableObject(target) && isMergeableObject(source)) {
+    for (const k in source) {
+      const key = k as keyof T;
+      const canMerge = isMergeableObject(source[key]);
+
+      if (canMerge) {
+        if (!target[key]) Object.assign(target, { [key]: {} });
+        deepMerge(target[key] as object, source[key]);
+      } else {
+        Object.assign(target, { [key]: source[key] });
+      }
+    }
+  }
+
+  return deepMerge(target, ...sources);
+};
+
+export const isMergeableObject = (obj: any): boolean =>
+  obj !== null && typeof obj === "object" && !Array.isArray(obj);
+
+export const writeFileSync = (filePath: string, content: any) => {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  fs.writeFileSync(filePath, content);
+};
+
+export const writeFile = async (filePath: string, content: any) => {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    await fs.promises.mkdir(dir, { recursive: true });
+  }
+
+  await fs.promises.writeFile(filePath, content);
+};
+
+export const writeJsonSync = (filePath: string, content: any) => {
+  writeFile(filePath, JSON.stringify(content, null, 2));
+};
+
+export const writeJson = async (filePath: string, content: any) => {
+  await writeFile(filePath, JSON.stringify(content, null, 2));
+};
+
+export const readJsonSync = <T>(filePath: string): T => {
+  const resp = fs.readFileSync(filePath, "utf-8");
+  return JSON.parse(resp) as T;
+};
+
+export const readJson = async <T>(filePath: string): Promise<T> => {
+  const resp = await fs.promises.readFile(filePath, "utf-8");
+  return JSON.parse(resp) as T;
+};
+
+export const getHMSTime = (hms: HMS): number => {
+  const d = new Date();
+  d.setHours(hms[0]);
+  d.setMinutes(hms[1]);
+  d.setSeconds(hms[2]);
+  return d.getTime();
+};
+
+export const dateToMDY = (d: Date = new Date()): MDY => {
+  return [d.getMonth() + 1, d.getDate(), d.getFullYear()];
+};
+
+export const mdyIsToday = (mdy: MDY): boolean => {
+  const today = new Date();
+  return (
+    today.getMonth() + 1 === mdy[0] && today.getDate() === mdy[1] && today.getFullYear() === mdy[2]
+  );
+};
+
+export const randomBytes = (len: number = 16) => {
+  return crypto.randomBytes(len).toString("hex");
 };

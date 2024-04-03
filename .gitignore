@@ -2,3 +2,5 @@
 /build
 /coverage
 data.json
+*.g
+_g
