@@ -8,10 +8,10 @@ import Logger from "./Logger";
 import PersistentStateMachine from "./PersistentStateMachine";
 import Telemetry from "./Telemetry";
 
-class AriaDevice<T extends keyof ClientDeviceEvents> {
-  private deviceType: T;
-  private deviceName: string;
-  private deviceState: PersistentStateMachine<PersistentDeviceState>;
+class AriaDevice<T extends keyof ClientEvents | keyof HubEvents | "hub"> {
+  deviceType: T;
+  deviceName: string;
+  deviceState: PersistentStateMachine<PersistentDeviceState>;
   telemetry: Telemetry;
   connected: boolean = false;
   logger: Logger;
@@ -22,8 +22,10 @@ class AriaDevice<T extends keyof ClientDeviceEvents> {
     this.deviceState = new PersistentStateMachine(
       {
         deviceId: randomBytes(32),
+        deviceType: this.deviceType,
+        deviceName: this.deviceName,
       },
-      "device_master",
+      "device",
       opts.deviceStateSavePath
     );
     this.telemetry = new Telemetry();
@@ -34,7 +36,7 @@ class AriaDevice<T extends keyof ClientDeviceEvents> {
     return this.deviceState.values.deviceId;
   }
 
-  async initialize() {
+  async initializeDevice() {
     await this.telemetry.initialize();
   }
 }

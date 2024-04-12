@@ -9,9 +9,9 @@ class Logger {
     console.warn(message);
   }
 
-  error(message: string, err: Error) {
+  error(message: string, err?: any) {
     console.error(message);
-    console.error(err);
+    if (err) console.error(err);
   }
 }
 

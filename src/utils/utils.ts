@@ -1,7 +1,6 @@
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 
 export const getHost = (): string => {
   let host: string = os.hostname();
@@ -34,6 +33,10 @@ export const calculateTimeToReachTemp = (rate: number, currentTemp: number, targ
   if (diff === 0) return 0;
   if (rate === 0) return diff > 0 ? +Infinity : -Infinity;
   return diff / (rate / (60 * 60 * 1000));
+};
+
+export const time = (value: Time["value"], unit: Time["unit"]) => {
+  timeToMs({ unit, value });
 };
 
 export const timeToMs = (time: Time): number => {
@@ -93,10 +96,6 @@ export const mean = (input: number[], precision: number = 2) => {
   if (input.length === 0) return 0;
   if (input.length === 1) return input[0];
   return Number((sum(input) / input.length).toFixed(precision));
-};
-
-export const random = (min: number, max: number, precision: number = 2): number => {
-  return Number((Math.random() * (max - min) + min).toFixed(precision));
 };
 
 export const isRemote = () => process.env.NODE_ENV === "remote";
@@ -180,8 +179,4 @@ export const mdyIsToday = (mdy: MDY): boolean => {
   return (
     today.getMonth() + 1 === mdy[0] && today.getDate() === mdy[1] && today.getFullYear() === mdy[2]
   );
-};
-
-export const randomBytes = (len: number = 16) => {
-  return crypto.randomBytes(len).toString("hex");
 };
