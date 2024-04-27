@@ -1,26 +1,27 @@
-export {};
+import UserStore, { User } from "../stores/UserStore";
+import DeviceStore, { Device } from "../stores/DeviceStore";
+import HubStore from "../stores/HubStore";
 
 declare module "express-session" {
   interface SessionData {
-    hubToken: string;
-    deviceId: string;
-    userToken: string | null;
+    user: User;
   }
 }
-
-export {};
 
 declare global {
   namespace Express {
     export interface Request {
       headers: {
-        "X-Hub-Token": string;
-        "X-Device-ID": string;
+        "X-Access-Key": string;
         "X-User-Token": string;
       };
-      cookies: {
-        hst: string;
+      stores: {
+        devices: DeviceStore;
+        users: UserStore;
+        hub: HubStore;
       };
     }
   }
 }
+
+export {};

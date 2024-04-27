@@ -31,3 +31,9 @@ export const hash = (data: string): string => {
   hash.update(data);
   return hash.digest("hex");
 };
+
+export const hashPassword = (secret: PasswordSecret, password: string) => {
+  const [salt, pepper] = secret.split("_");
+  const decorated = [salt, password, pepper].join("");
+  return hash(decorated);
+};

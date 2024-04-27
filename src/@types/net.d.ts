@@ -1,88 +1,51 @@
-type HubUrl = `${"http" | "https"}://${string}:${number}`;
-
-type AriaHeaders = {
-  "X-User-Session-Token": UserSessionToken;
+type UpdateDeviceData = {
+  type: Exclude<AriaDeviceType, "hub">;
+  name: string;
+  room: string | null;
+  groups: string[];
+  favorite: boolean;
+  registrationState: "pending" | "registered";
+  address: string;
+  port: number;
 };
 
-// type HubToClientParams<
-//   T extends keyof HubEvents,
-//   EV extends keyof HubEvents[T]
-// > = HubEvents[T][EV] extends (...args: any) => any ? Parameters<HubEvents[T][EV]> : any[];
+type HubUrl = `${"http" | "https"}://${string}:${number}`;
 
-// type ClientToHubParams<EV extends keyof AllClientEvents> = AllClientEvents[EV] extends (
-//   ...args: any
-// ) => any
-//   ? Parameters<AllClientEvents[EV]>
-//   : any[];
+type SharedEvents = {
+  success: () => void;
+  fail: (err: Error) => void;
+  error: (err: Error) => void;
+  "system:info": (info: SystemInfo | null) => void;
+  "system:stats": (data: TelemetryStats) => void;
+};
 
-// type SharedClientEvents = {};
+type WindowEvents = {
+  devices: (devices: DeviceData[]) => void;
+  connections: (deviceIds: string[]) => void;
+};
 
-// type SharedHubEvents = {
-//   error: (err: Error) => void;
-//   "system:info": (info: SystemInfo | null) => void;
-//   "system:stats": (data: TelemetryStats) => void;
-//   "device:ready": (info: SystemInfo) => void;
-// };
+type HubEvents = SharedEvents & {
+  // From Manager Clients
+  "device:set": (deviceId: string, data: Partial<UpdateDeviceData>) => void;
+  "device:register": (deviceId: string) => void;
+  "device:remove": (deviceId: string) => void;
 
-// type NonWindowClientEvents = Omit<ClientEvents, "window">;
-// type NonWindowHubEvents = Omit<HubEvents, "window">;
+  // Device Events
+  "thermostat:data": (data: ThermostatStoreData) => void;
+};
 
-// type WindowHubEvents = {
-//   [K in keyof NonWindowClientEvents]: {
-//     [E in keyof NonWindowClientEvents[K]]: NonWindowClientEvents[K][E] extends (
-//       ...args: any[]
-//     ) => any
-//       ? (deviceId: string, ...args: Parameters<NonWindowClientEvents[K][E]>) => void
-//       : never;
-//   };
-// }[keyof NonWindowClientEvents];
+type ClientEvents = SharedEvents &
+  WindowEvents & {
+    "request:thermostat:data": () => void;
+    "thermostat:set:state": (state: ThermostatStoreData) => void;
+    "thermostat:set:hvac": (hvac: ThermostatStoreData) => void;
+    "thermostat:set:dht": (dht: ThermostatStoreData) => void;
+  };
 
-// type WindowClientEvents = {
-//   [K in keyof NonWindowHubEvents]: {
-//     [E in keyof NonWindowHubEvents[K]]: NonWindowHubEvents[K][E] extends (...args: any[]) => any
-//       ? (deviceId: string, ...args: Parameters<NonWindowHubEvents[K][E]>) => void
-//       : never;
-//   };
-// }[keyof NonWindowHubEvents];
+interface InterWSEvents {
+  ping: () => void;
+}
 
-// type AllHubEvents = {
-//   [K in keyof HubEvents]: {
-//     [E in keyof HubEvents[K]]: HubEvents[K][E] extends (...args: any[]) => any
-//       ? (...args: Parameters<HubEvents[K][E]>) => void
-//       : never;
-//   };
-// }[keyof HubEvents];
-
-// type AllClientEvents = {
-//   [K in keyof ClientEvents]: {
-//     [E in keyof ClientEvents[K]]: ClientEvents[K][E] extends (...args: any[]) => any
-//       ? (...args: Parameters<ClientEvents[K][E]>) => void
-//       : never;
-//   };
-// }[keyof ClientEvents];
-
-// type HubEvents = {
-//   window: SharedHubEvents & WindowHubEvents;
-//   thermostat: SharedHubEvents & {
-//     "thermostat:data": (data: ThermostatUpdateData) => void;
-//   };
-// };
-
-// type ClientEvents = {
-//   window: SharedClientEvents & WindowClientEvents;
-//   thermostat: SharedClientEvents & {
-//     "request:thermostat:data": () => void;
-//     "thermostat:set:state": (state: ThermostatPersistentState) => void;
-//     "thermostat:set:hvac": (hvac: HVACPersistentState) => void;
-//     "thermostat:set:dht": (dht: DHTPersistentState) => void;
-//   };
-// };
-
-// interface InterWSEvents {
-//   ping: () => void;
-// }
-
-// interface WSData {
-//   name: string;
-//   age: number;
-// }
+interface HubSocketData {
+  device: import("../stores/DeviceStore").Device;
+}

@@ -5,3 +5,11 @@ export const shuffle = <T extends any[]>(array: T): T => {
   }
   return array;
 };
+
+export const filterDuplicates = (arr: any[]) => {
+  return arr.reduce((p: any[], c: any) => {
+    const out = [...p];
+    if (!out.includes(c)) out.push(c);
+    return out;
+  }, []);
+};

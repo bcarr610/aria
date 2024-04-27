@@ -1,3 +1,6 @@
+import { Request, Response, NextFunction } from "express";
+import { validationResult, ValidationChain } from "express-validator";
+
 export const allSymbols = [
   "~",
   "`",
@@ -73,3 +76,19 @@ export const containsSymbolsAtLeast = (input: string, minSymbols: number) =>
   String(input).replace(/[a-zA-Z0-9]/gim, "").length >= minSymbols;
 export const containsUnsafeSymbols = (input: string) => !!String(input).match(unsafeSymbolsRgx);
 export const isOnlyAlphaNumeric = (input: string) => !!String(input).match(/[a-z0-9 ]/gim);
+
+export const httpValidation =
+  (...chains: ValidationChain[][]) =>
+  (req: Request, res: Response, next: NextFunction) => {
+    chains.forEach((chain) => {
+      chain.forEach((subChain) => {
+        subChain(req, res, next);
+      });
+    });
+    const result = validationResult(req);
+    if (result.isEmpty()) {
+      next();
+    } else {
+      res.status(400).json({ errors: result.array() });
+    }
+  };

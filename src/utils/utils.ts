@@ -98,7 +98,6 @@ export const mean = (input: number[], precision: number = 2) => {
   return Number((sum(input) / input.length).toFixed(precision));
 };
 
-export const isRemote = () => process.env.NODE_ENV === "remote";
 export const isDev = () => process.env.NODE_ENV === "development";
 export const isProd = () => process.env.NODE_ENV === "production";
 

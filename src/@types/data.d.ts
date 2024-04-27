@@ -7,37 +7,45 @@ type HubAccessKey = string;
 type Email = `${string}@${string}.${string}`;
 type PasswordSecret = `${string}_${string}`;
 
-type AriaDeviceType = "hub" | "window" | "thermostat";
+type AriaDeviceType = "window" | "thermostat" | "control_center";
 
-type UserRights = {
-  contentAgeLimit: number | "none";
-  deviceControl: AriaDeviceType[] | "*";
-  deviceView: AriaDeviceType[] | "*";
-  canCreateUsers: boolean;
+type Connection = {
+  socketId: string;
+  deviceId: string;
+  connectionTime: number;
 };
 
+type UserRights = {
+  contentAgeLimit: number | null;
+  deviceControl: AriaDeviceType[] | "*";
+};
+
+type ComRoom = "managers";
+
 type DeviceConfiguration = {
+  comRooms: ComRoom[];
+  canRemoveDevices: boolean;
   canConnectToHub: boolean;
   canReadTelemetry: boolean;
   canAuthorizeNewDevice: boolean;
+  canUpdateDevices: boolean;
+  canDeleteDevices: boolean;
   canReadLogs: boolean;
+  canViewDevices: boolean;
 };
 
-type RegisteredDevice = {
+type DeviceData = {
   id: DeviceId;
   type: AriaDeviceType;
   name: string;
   room: string | null;
   groups: string[];
   favorite: boolean;
-  online: boolean;
   config: DeviceConfiguration;
   registrationState: "pending" | "registered";
   registrationTime: number | null;
-  lastConnectedState: 0 | 1;
-  lastConnectedStateTime: number;
-  ip: string | undefined;
-  port: number;
+  address: string;
+  // port: number;
 };
 
 type EmailVerificationToken = {
@@ -53,7 +61,7 @@ type UserToken = {
   created: number;
 };
 
-type User = {
+type UserData = {
   id: UserId;
   firstName: string;
   emailVerified: boolean;
@@ -73,45 +81,4 @@ type HubConfig = {
   port: number;
   accessKey: HubAccessKey;
   rootUser: UserId | null;
-};
-
-type DHTConfig = {
-  type: 11 | 22;
-  pin: number;
-  tmpOffset: number;
-  humidityOffset: number;
-  precision: number;
-};
-
-type HVACStateConfig = {
-  times: HVACStateTimes;
-  minCycleTime: number;
-  minIdleTime: number;
-  gpioWire: {
-    [key in HVACComponentName]: number;
-  };
-};
-
-type ThermostatState = {
-  target: number;
-  mode: ThermostatMode;
-  energyMode: EnergyMode;
-  delaySpeedCalculation: number;
-  routines: ThermostatRoutine[];
-  schedule: ThermostatScheduleItem[];
-  maxRuntime: number;
-  clockSpeed: number;
-  targetReachOffset: number;
-  auxHeat: {
-    [key in EnergyMode]?: {
-      belowSpeed: number;
-      belowTempFromTarget: number;
-    };
-  };
-  targetPadding: {
-    [key in EnergyMode]?: number;
-  };
-  circulate: {
-    [key in EnergyMode]?: { for: number; every: number };
-  };
 };

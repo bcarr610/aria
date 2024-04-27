@@ -10,8 +10,12 @@ type NextHVACAction = {
   at: number;
 };
 
+type HVACGpioWires = {
+  [key in HVACComponentName]: number;
+};
+
 type HVACComponents = {
-  [key in HVACComponentName]: import("../instances/GPIO/GPIO").default;
+  [key in HVACComponentName]: import("../shared/GPIO/GPIO").default;
 };
 
 type ThermostatOptions = {
@@ -52,28 +56,5 @@ type HVACStateTimes = {
   [key in HVACState]: {
     lastActive: number;
     lastInactive: number;
-  };
-};
-
-type ThermostatUpdateData = {
-  thermostat: {
-    idleSpeed: number;
-    currentSpeed: number;
-    state: ThermostatPersistentState;
-  };
-  hvac: {
-    state: HVACState;
-    currentState: HVACPersistentState;
-    nextAction: NextHVACAction | null;
-    times: HVACStateTimes;
-    components: {
-      [key in HVACComponentName]: boolean;
-    };
-  };
-  dht: {
-    temperature: number;
-    humidity: number;
-    speed: number;
-    state: DHTPersistentState;
   };
 };

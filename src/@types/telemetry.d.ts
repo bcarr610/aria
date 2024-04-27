@@ -24,16 +24,8 @@ type MEMInfo = {
   total: number;
 };
 
-type StorageStats = {
-  path: string;
-  total: number;
-  used: number;
-  available: number;
-};
-
 type TelemetryStats = {
   uptime: number;
-  storage: StorageStats[];
   cpu: {
     speed: number;
     temp: number;
