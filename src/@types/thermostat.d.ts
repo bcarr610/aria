@@ -15,7 +15,7 @@ type HVACGpioWires = {
 };
 
 type HVACComponents = {
-  [key in HVACComponentName]: import("../shared/GPIO/GPIO").default;
+  [key in HVACComponentName]: import("../shared/GPIO").default;
 };
 
 type ThermostatOptions = {
