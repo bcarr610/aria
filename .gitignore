@@ -6,3 +6,4 @@ data.json
 _g
 ~
 bin
+*.env

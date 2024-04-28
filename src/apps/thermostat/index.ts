@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import io, { Socket } from "socket.io-client";
 import Telemetry from "../../shared/Telemetry";
 import ThermostatController from "../../shared/ThermostatController";
@@ -117,12 +120,25 @@ const store = new ThermostatStore("~/astate.ag", {
   },
 });
 
-if (!process.env.ARIA_HUB_URL) {
-  console.error(`Missing ARIA_HUB_URL environment variable`);
+const { ARIA_HUB_HOST, ARIA_HUB_PORT, ARIA_HUB_PROTOCOL } = process.env;
+if (!ARIA_HUB_HOST) {
+  console.error(`Missing ARIA_HUB_HOST environment variable`);
   process.exit(1);
 }
 
-const socket: Socket<ClientEvents, HubEvents> = io(process.env.ARIA_HUB_URL, {
+if (!ARIA_HUB_PORT) {
+  console.error(`Missing ARIA_HUB_PORT environment variable`);
+  process.exit(1);
+}
+
+if (!ARIA_HUB_PROTOCOL) {
+  console.error(`Missing ARIA_HUB_PROTOCOL environment variable`);
+  process.exit(1);
+}
+
+const ariaHubUrl = `${ARIA_HUB_PROTOCOL}://${ARIA_HUB_HOST}:${ARIA_HUB_PORT}`;
+
+const socket: Socket<ClientEvents, HubEvents> = io(ariaHubUrl, {
   auth: {
     deviceId: store.data.deviceId,
     deviceType: store.data.deviceType,
