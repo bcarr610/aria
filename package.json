@@ -6,7 +6,8 @@
   "scripts": {
     "dev:thermostat": "cross-env NODE_ENV=remote nodemon -q --config ./nodemon/nodemon.config.dev.json ./src/apps/thermostat/index.ts",
     "dev:hub": "cross-env NODE_ENV=remote nodemon -q --config ./nodemon/nodemon.config.dev.json ./src/apps/hub/index.ts",
-    "start:hub": "cross-env NODE_ENV=production nodemon -q --config ./nodemon/nodemon.config.prod.json ./build/index.js",
+    "start:thermostat": "cross-env NODE_ENV=production nodemon -q --config ./nodemon/nodemon.config.prod.json ./build/thermostat.js",
+    "start:hub": "cross-env NODE_ENV=production nodemon -q --config ./nodemon/nodemon.config.prod.json ./build/hub.js",
     "build": "npm-run-all build:*",
     "build:hub": "esbuild src/apps/hub/index.ts --bundle --platform=node --outfile=build/hub.js",
     "build:thermostat": "esbuild src/apps/thermostat/index.ts --bundle --platform=node --outfile=build/thermostat.js",
