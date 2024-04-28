@@ -117,7 +117,12 @@ const store = new ThermostatStore("~/astate.ag", {
   },
 });
 
-const socket: Socket<ClientEvents, HubEvents> = io("http://localhost:3000", {
+if (!process.env.ARIA_HUB_URL) {
+  console.error(`Missing ARIA_HUB_URL environment variable`);
+  process.exit(1);
+}
+
+const socket: Socket<ClientEvents, HubEvents> = io(process.env.ARIA_HUB_URL, {
   auth: {
     deviceId: store.data.deviceId,
     deviceType: store.data.deviceType,
